@@ -381,7 +381,7 @@ int main(int argc, char *argv[])
     if (user_str_len < 0)
     {
         printf("Error setting up buffer, error = %d\n", user_str_len);
-        exit(2);
+        exit(2); // could also be 3 since Provided input string is too long
     }
 
     switch (opt)
@@ -419,7 +419,7 @@ int main(int argc, char *argv[])
         if (rc < 0)
         {
             printf("Error searching and replacing, rc = %d\n", rc);
-            exit(2);
+            exit(1); // command line error
         }
         break;
     default:
