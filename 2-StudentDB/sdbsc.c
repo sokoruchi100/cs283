@@ -63,9 +63,9 @@ int open_db(char *dbFile, bool should_truncate)
 int get_student(int fd, int id, student_t *s)
 {
     // move to file pointer and check for errors
-    int offset = id * STUDENT_RECORD_SIZE;
-    off_t pos = lseek(fd, offset, SEEK_SET);
-    if (pos < 0)
+    off_t offset = id * STUDENT_RECORD_SIZE;
+    off_t lseekResult = lseek(fd, offset, SEEK_SET);
+    if (lseekResult < 0)
     {
         return ERR_DB_FILE;
     }
@@ -113,53 +113,48 @@ int get_student(int fd, int id, student_t *s)
  */
 int add_student(int fd, int id, char *fname, char *lname, int gpa)
 {
-    // allocate memory to store the student
-    student_t *student = malloc(STUDENT_RECORD_SIZE);
+    // create an empty student struct
+    student_t student = {0};
+    off_t offset = id * STUDENT_RECORD_SIZE;
 
-    // move to the correct file pointer
-    int offset = id * STUDENT_RECORD_SIZE;
-    off_t pos = lseek(fd, offset, SEEK_SET);
-    if (pos < 0)
+    // go to the right file position
+    off_t lseekResult = lseek(fd, offset, SEEK_SET);
+    if (lseekResult < 0)
     {
         printf(M_ERR_DB_READ);
-        free(student);
         return ERR_DB_FILE;
     }
 
-    // read the student from db to the pointer
-    ssize_t bytesRead = read(fd, student, STUDENT_RECORD_SIZE);
+    // read the student from db
+    ssize_t bytesRead = read(fd, &student, STUDENT_RECORD_SIZE);
     if (bytesRead < 0)
     {
         printf(M_ERR_DB_READ);
-        free(student);
         return ERR_DB_FILE;
     }
 
     // returns an error if a student already exists
-    if (memcmp(student, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0)
+    if (memcmp(&student, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0)
     {
         printf(M_ERR_DB_ADD_DUP, id);
-        free(student);
         return ERR_DB_OP;
     }
 
     // initialize the data for the new student
-    student->id = id;
-    student->gpa = gpa;
-    strncpy(student->fname, fname, 24);
-    strncpy(student->lname, lname, 32);
+    student.id = id;
+    student.gpa = gpa;
+    strncpy(student.fname, fname, sizeof(student.fname));
+    strncpy(student.lname, lname, sizeof(student.lname));
 
     // write the student into the database
-    ssize_t bytesWritten = write(fd, student, STUDENT_RECORD_SIZE);
+    ssize_t bytesWritten = write(fd, &student, STUDENT_RECORD_SIZE);
     if (bytesWritten < 0)
     {
         printf(M_ERR_DB_WRITE);
-        free(student);
         return ERR_DB_FILE;
     }
 
     printf(M_STD_ADDED, id);
-    free(student);
     return NO_ERROR;
 }
 
@@ -187,9 +182,34 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa)
  */
 int del_student(int fd, int id)
 {
-    // TODO
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    // get the student to be deleted
+    student_t student = {0};
+    int getStudentResult = get_student(fd, id, &student);
+    if (getStudentResult < 0)
+    {
+        printf(M_STD_NOT_FND_MSG, id);
+        return ERR_DB_OP;
+    }
+
+    // go to the right file position
+    off_t offset = id * STUDENT_RECORD_SIZE;
+    off_t lseekResult = lseek(fd, offset, SEEK_SET);
+    if (lseekResult < 0)
+    {
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
+
+    // write the empty student record
+    ssize_t bytesWritten = write(fd, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE);
+    if (bytesWritten < 0)
+    {
+        printf(M_ERR_DB_WRITE);
+        return ERR_DB_FILE;
+    }
+
+    printf(M_STD_DEL_MSG, id);
+    return NO_ERROR;
 }
 
 /*
