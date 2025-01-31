@@ -62,8 +62,28 @@ int open_db(char *dbFile, bool should_truncate)
  */
 int get_student(int fd, int id, student_t *s)
 {
-    // TODO
-    return NOT_IMPLEMENTED_YET;
+    // move to file pointer and check for errors
+    int offset = id * STUDENT_RECORD_SIZE;
+    off_t pos = lseek(fd, offset, SEEK_SET);
+    if (pos < 0)
+    {
+        return ERR_DB_FILE;
+    }
+
+    // read and store the bytes into the student_t, check for errors
+    ssize_t bytesRead = read(fd, s, STUDENT_RECORD_SIZE);
+    if (bytesRead < 0)
+    {
+        return ERR_DB_FILE;
+    }
+
+    // returns error if no student was found
+    if (memcmp(s, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) == 0)
+    {
+        return SRCH_NOT_FOUND;
+    }
+
+    return NO_ERROR;
 }
 
 /*
@@ -93,9 +113,54 @@ int get_student(int fd, int id, student_t *s)
  */
 int add_student(int fd, int id, char *fname, char *lname, int gpa)
 {
-    // TODO
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    // allocate memory to store the student
+    student_t *student = malloc(STUDENT_RECORD_SIZE);
+
+    // move to the correct file pointer
+    int offset = id * STUDENT_RECORD_SIZE;
+    off_t pos = lseek(fd, offset, SEEK_SET);
+    if (pos < 0)
+    {
+        printf(M_ERR_DB_READ);
+        free(student);
+        return ERR_DB_FILE;
+    }
+
+    // read the student from db to the pointer
+    ssize_t bytesRead = read(fd, student, STUDENT_RECORD_SIZE);
+    if (bytesRead < 0)
+    {
+        printf(M_ERR_DB_READ);
+        free(student);
+        return ERR_DB_FILE;
+    }
+
+    // returns an error if a student already exists
+    if (memcmp(student, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0)
+    {
+        printf(M_ERR_DB_ADD_DUP, id);
+        free(student);
+        return ERR_DB_OP;
+    }
+
+    // initialize the data for the new student
+    student->id = id;
+    student->gpa = gpa;
+    strncpy(student->fname, fname, 24);
+    strncpy(student->lname, lname, 32);
+
+    // write the student into the database
+    ssize_t bytesWritten = write(fd, student, STUDENT_RECORD_SIZE);
+    if (bytesWritten < 0)
+    {
+        printf(M_ERR_DB_WRITE);
+        free(student);
+        return ERR_DB_FILE;
+    }
+
+    printf(M_STD_ADDED, id);
+    free(student);
+    return NO_ERROR;
 }
 
 /*
