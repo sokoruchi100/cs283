@@ -117,24 +117,16 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa)
     student_t student = {0};
     off_t offset = id * STUDENT_RECORD_SIZE;
 
-    // go to the right file position
-    off_t lseekResult = lseek(fd, offset, SEEK_SET);
-    if (lseekResult < 0)
+    // check if the student already exists
+    int getStudentResult = get_student(fd, id, &student);
+    if (getStudentResult == ERR_DB_FILE)
     {
         printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
-    // read the student from db
-    ssize_t bytesRead = read(fd, &student, STUDENT_RECORD_SIZE);
-    if (bytesRead < 0)
-    {
-        printf(M_ERR_DB_READ);
-        return ERR_DB_FILE;
-    }
-
-    // returns an error if a student already exists
-    if (memcmp(&student, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0)
+    // student was found, can not add a student here
+    if (getStudentResult == NO_ERROR)
     {
         printf(M_ERR_DB_ADD_DUP, id);
         return ERR_DB_OP;
@@ -145,6 +137,14 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa)
     student.gpa = gpa;
     strncpy(student.fname, fname, sizeof(student.fname));
     strncpy(student.lname, lname, sizeof(student.lname));
+
+    // go to the right file position
+    off_t lseekResult = lseek(fd, offset, SEEK_SET);
+    if (lseekResult < 0)
+    {
+        printf(M_ERR_DB_READ);
+        return ERR_DB_FILE;
+    }
 
     // write the student into the database
     ssize_t bytesWritten = write(fd, &student, STUDENT_RECORD_SIZE);
@@ -243,7 +243,7 @@ int count_db_records(int fd)
 
     // initial variables to perform loop operation through entire database
     int count = 0;
-    int i = 0;
+    int i = 1;
     ssize_t bytesRead = 1;
     while (bytesRead != 0)
     {
@@ -325,7 +325,7 @@ int print_db(int fd)
 
     // initial variables to perform loop operation through entire database
     int firstRow = 1;
-    int i = 0;
+    int i = 1;
     ssize_t bytesRead = 1;
     while (bytesRead != 0)
     {
@@ -400,8 +400,16 @@ int print_db(int fd)
  */
 void print_student(student_t *s)
 {
-    // TODO
-    printf(M_NOT_IMPL);
+    // check for student validity
+    if (s == NULL || s->id == 0)
+    {
+        printf(M_ERR_STD_PRINT);
+    }
+
+    // proceed to print the student
+    printf(STUDENT_PRINT_HDR_STRING, "ID", "FIRST NAME", "LAST_NAME", "GPA");
+    float calculated_gpa_from_student = s->gpa / 100.0;
+    printf(STUDENT_PRINT_FMT_STRING, s->id, s->fname, s->lname, calculated_gpa_from_student);
 }
 
 /*
