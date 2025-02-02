@@ -238,9 +238,51 @@ int del_student(int fd, int id)
  */
 int count_db_records(int fd)
 {
-    // TODO
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    // just to hold the student data
+    student_t student = {0};
+
+    // initial variables to perform loop operation through entire database
+    int count = 0;
+    int i = 0;
+    ssize_t bytesRead = 1;
+    while (bytesRead != 0)
+    {
+        // iterate through the positions
+        off_t offset = i * STUDENT_RECORD_SIZE;
+        off_t lseekResult = lseek(fd, offset, SEEK_SET);
+        if (lseekResult < 0)
+        {
+            printf(M_ERR_DB_READ);
+            return ERR_DB_FILE;
+        }
+
+        // get the student from the database
+        bytesRead = read(fd, &student, STUDENT_RECORD_SIZE);
+        if (bytesRead < 0)
+        {
+            printf(M_ERR_DB_READ);
+            return ERR_DB_FILE;
+        }
+
+        // increment counter if the record is not empty
+        if (bytesRead == STUDENT_RECORD_SIZE && memcmp(&student, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0)
+        {
+            count++;
+        }
+
+        i++;
+    }
+
+    if (count == 0)
+    {
+        printf(M_DB_EMPTY);
+    }
+    else
+    {
+        printf(M_DB_RECORD_CNT, count);
+    }
+
+    return count;
 }
 
 /*
@@ -278,9 +320,54 @@ int count_db_records(int fd)
  */
 int print_db(int fd)
 {
-    // TODO
-    printf(M_NOT_IMPL);
-    return NOT_IMPLEMENTED_YET;
+    // just to hold the student data
+    student_t student = {0};
+
+    // initial variables to perform loop operation through entire database
+    int firstRow = 1;
+    int i = 0;
+    ssize_t bytesRead = 1;
+    while (bytesRead != 0)
+    {
+        // iterate through the positions
+        off_t offset = i * STUDENT_RECORD_SIZE;
+        off_t lseekResult = lseek(fd, offset, SEEK_SET);
+        if (lseekResult < 0)
+        {
+            printf(M_ERR_DB_READ);
+            return ERR_DB_FILE;
+        }
+
+        // get the student from the database
+        bytesRead = read(fd, &student, STUDENT_RECORD_SIZE);
+        if (bytesRead < 0)
+        {
+            printf(M_ERR_DB_READ);
+            return ERR_DB_FILE;
+        }
+
+        // print student if the record is not empty
+        if (bytesRead == STUDENT_RECORD_SIZE && memcmp(&student, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE) != 0)
+        {
+            // prints the first row string
+            if (firstRow)
+            {
+                printf(STUDENT_PRINT_HDR_STRING, "ID", "FIRST NAME", "LAST_NAME", "GPA");
+                firstRow = 0;
+            }
+            float calculated_gpa_from_student = student.gpa / 100.0;
+            printf(STUDENT_PRINT_FMT_STRING, student.id, student.fname, student.lname, calculated_gpa_from_student);
+        }
+
+        i++;
+    }
+
+    if (firstRow != 0)
+    {
+        printf("Database contains no student records.\n");
+    }
+
+    return NO_ERROR;
 }
 
 /*
