@@ -121,7 +121,7 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa)
     int getStudentResult = get_student(fd, id, &student);
     if (getStudentResult == ERR_DB_FILE)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -142,7 +142,7 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa)
     off_t lseekResult = lseek(fd, offset, SEEK_SET);
     if (lseekResult < 0)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -150,7 +150,7 @@ int add_student(int fd, int id, char *fname, char *lname, int gpa)
     ssize_t bytesWritten = write(fd, &student, STUDENT_RECORD_SIZE);
     if (bytesWritten < 0)
     {
-        perror(M_ERR_DB_WRITE);
+        printf(M_ERR_DB_WRITE);
         return ERR_DB_FILE;
     }
 
@@ -196,7 +196,7 @@ int del_student(int fd, int id)
     off_t lseekResult = lseek(fd, offset, SEEK_SET);
     if (lseekResult < 0)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -204,7 +204,7 @@ int del_student(int fd, int id)
     ssize_t bytesWritten = write(fd, &EMPTY_STUDENT_RECORD, STUDENT_RECORD_SIZE);
     if (bytesWritten < 0)
     {
-        perror(M_ERR_DB_WRITE);
+        printf(M_ERR_DB_WRITE);
         return ERR_DB_FILE;
     }
 
@@ -245,7 +245,7 @@ int count_db_records(int fd)
     int lseekResult = lseek(fd, STUDENT_RECORD_SIZE, SEEK_SET);
     if (lseekResult < 0)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -264,7 +264,7 @@ int count_db_records(int fd)
     // check if there was an error with reading the file
     if (bytesRead < 0)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -322,7 +322,7 @@ int print_db(int fd)
     int lseekResult = lseek(fd, STUDENT_RECORD_SIZE, SEEK_SET);
     if (lseekResult < 0)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -348,7 +348,7 @@ int print_db(int fd)
     // check if there was an error with reading the file
     if (bytesRead < 0)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -393,7 +393,7 @@ void print_student(student_t *s)
     // check for student validity
     if (s == NULL || s->id == 0)
     {
-        perror(M_ERR_STD_PRINT);
+        printf(M_ERR_STD_PRINT);
         return;
     }
 
@@ -457,7 +457,7 @@ int compress_db(int fd)
     int tempFd = open_db(TMP_DB_FILE, true);
     if (tempFd < 0)
     {
-        perror(M_ERR_DB_OPEN);
+        printf(M_ERR_DB_OPEN);
         return ERR_DB_FILE;
     }
 
@@ -468,7 +468,7 @@ int compress_db(int fd)
     int lseekResult = lseek(fd, STUDENT_RECORD_SIZE, SEEK_SET);
     if (lseekResult < 0)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -485,7 +485,7 @@ int compress_db(int fd)
             off_t lseekResult = lseek(tempFd, offset, SEEK_SET);
             if (lseekResult < 0)
             {
-                perror(M_ERR_DB_READ);
+                printf(M_ERR_DB_READ);
                 return ERR_DB_FILE;
             }
 
@@ -493,7 +493,7 @@ int compress_db(int fd)
             ssize_t bytesWritten = write(tempFd, &student, STUDENT_RECORD_SIZE);
             if (bytesWritten < 0)
             {
-                perror(M_ERR_DB_WRITE);
+                printf(M_ERR_DB_WRITE);
                 return ERR_DB_FILE;
             }
         }
@@ -504,7 +504,7 @@ int compress_db(int fd)
     // check if there was an error with reading the file
     if (bytesRead < 0)
     {
-        perror(M_ERR_DB_READ);
+        printf(M_ERR_DB_READ);
         return ERR_DB_FILE;
     }
 
@@ -516,7 +516,7 @@ int compress_db(int fd)
     int renameResult = rename(TMP_DB_FILE, DB_FILE);
     if (renameResult < 0)
     {
-        perror(M_ERR_DB_CREATE);
+        printf(M_ERR_DB_CREATE);
         return ERR_DB_FILE;
     }
 
@@ -524,7 +524,7 @@ int compress_db(int fd)
     int newFd = open_db(DB_FILE, false);
     if (newFd < 0)
     {
-        perror(M_ERR_DB_OPEN);
+        printf(M_ERR_DB_OPEN);
         return ERR_DB_FILE;
     }
 
