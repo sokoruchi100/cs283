@@ -64,25 +64,54 @@ int main()
         // remove the trailing \n from cmd_buff
         cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
 
-        // create the new command struct with exe and args
-        command_t newCommand;
-        memcpy(newCommand.exe, cmd_buff, EXE_MAX);
-        memcpy(newCommand.args, cmd_buff, ARG_MAX);
+        // build the command list
+        rc = build_cmd_list(cmd_buff, &clist);
 
-        // add it to the command list and increment the count
-        clist.commands[clist.num] = newCommand;
-        clist.num++;
+        // Check for any return errors after bulding cmd_list
+        if (rc == WARN_NO_CMDS)
+        {
+            printf(CMD_WARN_NO_CMD);
+            continue;
+        }
+
+        if (rc == ERR_TOO_MANY_COMMANDS)
+        {
+            printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
+            continue;
+        }
 
         // handle exiting the shell
         if (memcmp(cmd_buff, EXIT_CMD, sizeof(EXIT_CMD)) == 0)
         {
-
             free(cmd_buff);
             exit(EXIT_SUCCESS);
         }
 
         // output the command
         printf(CMD_OK_HEADER, clist.num);
-        printf("<%d> %s\n", clist.num, cmd_buff);
+        for (int i = 0; i < clist.num; i++)
+        {
+            // no args
+            if (strlen(clist.commands[i].args) == 0)
+            {
+                printf("<%d> %s\n", i + 1, clist.commands[i].exe);
+            }
+            else
+            {
+                // with args
+                printf("<%d> %s [%s]\n", i + 1, clist.commands[i].exe, clist.commands[i].args);
+            }
+        }
+
+        // clean up the clist
+        clist.num = 0;
+        for (int i = 0; i < CMD_MAX; i++)
+        {
+            command_t emptyCommand = {0};
+            clist.commands[i] = emptyCommand;
+        }
     }
+
+    // in case of exiting due to EOF
+    exit(EXIT_SUCCESS);
 }

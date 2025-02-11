@@ -9,13 +9,13 @@
 
 3. In `dshlib.c`, the function `build_cmd_list(`)` must trim leading and trailing spaces from each command before storing it. Why is this necessary? If we didn't trim spaces, what kind of issues might arise when executing commands in our shell?
 
-    > **Answer**:  _start here_
+    > **Answer**:  This is necessary because it might interpret commands including the spaces and it would not be able to run the commands with spaces in the name. It might also limit how many characters we can input in a single command. Ignoring the leading and trailing spaces allow us to input more characters. 
 
 4. For this question you need to do some research on STDIN, STDOUT, and STDERR in Linux. We've learned this week that shells are "robust brokers of input and output". Google _"linux shell stdin stdout stderr explained"_ to get started.
 
 - One topic you should have found information on is "redirection". Please provide at least 3 redirection examples that we should implement in our custom shell, and explain what challenges we might have implementing them.
 
-    > **Answer**:  _start here_
+    > **Answer**:  Input: prog1 < file1, Output: prog1 > file1, Append: prog1 >> file1. When doing pipes, we will have to 
 
 - You should have also learned about "pipes". Redirection and piping both involve controlling input and output in the shell, but they serve different purposes. Explain the key differences between redirection and piping.
 
