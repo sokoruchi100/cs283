@@ -53,6 +53,7 @@ int main()
 
     while (1)
     {
+        // print the shell prompt and get the stdin
         printf("%s", SH_PROMPT);
         if (fgets(cmd_buff, ARG_MAX, stdin) == NULL)
         {
@@ -71,35 +72,42 @@ int main()
         if (rc == WARN_NO_CMDS)
         {
             printf(CMD_WARN_NO_CMD);
-            continue;
         }
 
         if (rc == ERR_TOO_MANY_COMMANDS)
         {
             printf(CMD_ERR_PIPE_LIMIT, CMD_MAX);
-            continue;
         }
 
-        // handle exiting the shell
-        if (memcmp(cmd_buff, EXIT_CMD, sizeof(EXIT_CMD)) == 0)
+        if (rc == ERR_CMD_OR_ARGS_TOO_BIG)
         {
-            free(cmd_buff);
-            exit(EXIT_SUCCESS);
+            printf("error: command or arguments were too big\n");
         }
 
-        // output the command
-        printf(CMD_OK_HEADER, clist.num);
-        for (int i = 0; i < clist.num; i++)
+        // handle appropriate commands and printing
+        if (rc == OK)
         {
-            // no args
-            if (strlen(clist.commands[i].args) == 0)
+            // handle exiting the shell
+            if (memcmp(cmd_buff, EXIT_CMD, sizeof(EXIT_CMD)) == 0)
             {
-                printf("<%d> %s\n", i + 1, clist.commands[i].exe);
+                free(cmd_buff);
+                break;
             }
-            else
+
+            // output the command
+            printf(CMD_OK_HEADER, clist.num);
+            for (int i = 0; i < clist.num; i++)
             {
-                // with args
-                printf("<%d> %s [%s]\n", i + 1, clist.commands[i].exe, clist.commands[i].args);
+                // no args
+                if (strlen(clist.commands[i].args) == 0)
+                {
+                    printf("<%d> %s\n", i + 1, clist.commands[i].exe);
+                }
+                else
+                {
+                    // with args
+                    printf("<%d> %s [%s]\n", i + 1, clist.commands[i].exe, clist.commands[i].args);
+                }
             }
         }
 

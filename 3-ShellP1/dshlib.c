@@ -10,10 +10,9 @@
 // copies the trimmed string into a new string and returns it
 char *trim_lead_and_trail_spaces(char *string)
 {
-
     for (int i = 0; i < (int)strlen(string); i++)
     {
-        if (string[i] != ' ')
+        if (string[i] != SPACE_CHAR)
         {
             // set the pointer to the first not whitespace char
             string += i;
@@ -24,7 +23,7 @@ char *trim_lead_and_trail_spaces(char *string)
     int trueLength = strlen(string);
     for (int i = strlen(string) - 1; i >= 0; i--)
     {
-        if (string[i] != ' ')
+        if (string[i] != SPACE_CHAR)
         {
             trueLength = i + 1;
             break;
@@ -33,7 +32,7 @@ char *trim_lead_and_trail_spaces(char *string)
 
     char *trimmedCmd = malloc(trueLength + 1);
     strncpy(trimmedCmd, string, trueLength);
-    trimmedCmd[trueLength + 1] = '\0';
+    trimmedCmd[trueLength] = '\0';
 
     return trimmedCmd;
 }
@@ -82,7 +81,8 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
 
         // store the executable and arguments in the command struct
         command_t newCommand = {0};
-        char *res = strchr(trimmedCmd, ' ');
+        char *res = strchr(trimmedCmd, SPACE_CHAR);
+
         int exeLength;
 
         // If no space, there are no arguments in this command, set the length of exe
@@ -104,13 +104,12 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
 
         // set the exe command
         strncpy(newCommand.exe, trimmedCmd, exeLength);
-        free(trimmedCmd);
 
         // add arguments if they exist
         if (res != NULL)
         {
             // trim whitespace from arguments
-            char *trimmedArgs = trim_lead_and_trail_spaces(res + 1);
+            char *trimmedArgs = trim_lead_and_trail_spaces(res);
 
             // validate args length
             int argsLength = strlen(trimmedArgs);
@@ -130,6 +129,8 @@ int build_cmd_list(char *cmd_line, command_list_t *clist)
         clist->num++;
 
         cmd = strtok(NULL, PIPE_STRING);
+
+        free(trimmedCmd);
     }
 
     if (clist->num == 0)
