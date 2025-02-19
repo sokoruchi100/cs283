@@ -108,7 +108,7 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd)
 }
 
 // takes an input string and returns the enum for the built in command
-// if not a built in command, returns the 
+// if not a built in command, returns not a built in command
 Built_In_Cmds match_command(const char *input)
 {
     if (strcmp(input, EXIT_CMD) == 0)
@@ -132,21 +132,28 @@ Built_In_Cmds match_command(const char *input)
 // executes the built in command
 Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd)
 {
-    if (strcmp(input, EXIT_CMD) == 0)
+    Built_In_Cmds commandCode = match_command(cmd->argv[0]);
+
+    if (commandCode == BI_CMD_EXIT)
     {
-        return BI_CMD_EXIT;
+        return BI_RC;
     }
 
-    if (strcmp(input, DRAGON_CMD) == 0)
+    if (commandCode == BI_CMD_DRAGON)
     {
-
-        return BI_CMD_DRAGON;
+        print_dragon();
     }
 
-    if (strcmp(input, CD_CMD) == 0)
+    // the cd command should chdir to the provided directory; if no directory is provided, do nothing
+    if (commandCode == BI_CMD_CD)
     {
-        return BI_CMD_CD;
+        if (cmd->argc == 2)
+        {
+            chdir(cmd->argv[1]);
+        }
     }
+
+    return BI_EXECUTED;
 }
 
 /*
@@ -241,18 +248,31 @@ int exec_local_cmd_loop()
         // handle appropriate commands and printing
         if (rc == OK)
         {
-            Built_In_Cmds biCmd = match_command(cmd->argv[0]);
+
+            Built_In_Cmds matchedCommand = match_command(cmd->argv[0]);
+
+            // perform built in logic
+            if (matchedCommand != BI_NOT_BI)
+            {
+                Built_In_Cmds cmd_rc = exec_built_in_cmd(cmd);
+
+                // exit command was called
+                if (cmd_rc == BI_RC)
+                {
+                    break;
+                }
+            }
+            // TODO IMPLEMENT if not built-in command, fork/exec as an external command
+            // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
+            // Not a built in command, perform fork/exec
+            else
+            {
+            }
         }
 
         // clear the data within the cmd_buff for the next command
         clear_cmd_buff(cmd);
     }
-
-    // TODO IMPLEMENT if built-in command, execute builtin logic for exit, cd (extra credit: dragon)
-    // the cd command should chdir to the provided directory; if no directory is provided, do nothing
-
-    // TODO IMPLEMENT if not built-in command, fork/exec as an external command
-    // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
 
     // remember to free the memory
     free_cmd_buff(cmd);
