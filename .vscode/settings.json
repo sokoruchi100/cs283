@@ -3,6 +3,7 @@
         "random": "c",
         "algorithm": "c",
         "string_view": "c",
-        "dshlib.h": "c"
+        "dshlib.h": "c",
+        "stdio.h": "c"
     }
 }
