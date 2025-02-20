@@ -8,42 +8,48 @@
 #include <sys/wait.h>
 #include "dshlib.h"
 
-// takes a string sets the pointer to the first non whitespace character
-// then it finds the length of the true string without the trailing space
-// copies the trimmed string into a new string and returns it
-char *trim_lead_and_trail_spaces(char *string)
+// copies the oldStr into the newStr without any of the leading and trailing whitespace
+// does not mutate the old string or the new string
+// returns a return code in case bugs crop up
+int strtrimcpy(char *newStr, char *oldStr)
 {
-    // just in case to help in loop logic
-    if (string == NULL)
+    // check for null pointers
+    if (oldStr == NULL || newStr == NULL)
     {
-        return NULL;
+        return ERR_MEMORY;
     }
 
-    for (int i = 0; i < (int)strlen(string); i++)
+    int length = strlen(oldStr);
+    int start = 0;
+
+    // find the first character non whitespace char
+    while (start < length && oldStr[start] == SPACE_CHAR)
     {
-        if (string[i] != SPACE_CHAR)
-        {
-            // set the pointer to the first not whitespace char
-            string += i;
-            break;
-        }
+        start++;
     }
 
-    int trueLength = strlen(string);
-    for (int i = strlen(string) - 1; i >= 0; i--)
+    // if the string is all spaces, newStr is empty
+    if (start == length)
     {
-        if (string[i] != SPACE_CHAR)
-        {
-            trueLength = i + 1;
-            break;
-        }
+        newStr[0] = '\0';
+        return OK;
     }
 
-    char *trimmedCmd = malloc(trueLength + 1);
-    strncpy(trimmedCmd, string, trueLength);
-    trimmedCmd[trueLength] = '\0';
+    int end = length - 1;
 
-    return trimmedCmd;
+    // find the last character non whitespace char
+    while (end > start && oldStr[end] == SPACE_CHAR)
+    {
+        end--;
+    }
+
+    int trueLength = end - start + 1;
+
+    // copy substring from start all for the true length of characters
+    strncpy(newStr, oldStr + start, trueLength);
+    newStr[trueLength] = '\0';
+
+    return OK;
 }
 
 // helper function to allocate memory
@@ -99,84 +105,104 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd)
     // copy the original cmd_line to the cmd buffer
     strcpy(cmd->_cmd_buffer, cmd_line);
 
-    // trim whitespace from the front and back
-    char *trimmedCmd = trim_lead_and_trail_spaces(cmd_line);
-
-    // useful variables to notify the start and end of each word
-    char *start = trimmedCmd;
-    char *end;
-    int lengthOfArgs = 0;
-    while (start != NULL)
+    // allocate a buffer to hold the trimmed command
+    char *trimmed = malloc(strlen(cmd_line) + 1);
+    if (trimmed == NULL)
     {
-        // start by obtaining the end char position
-        end = strchr(start, SPACE_CHAR);
-
-        // Obtain the length of the word
-        int wordLength;
-        if (end == NULL)
-        {
-            wordLength = strlen(start);
-        }
-        else
-        {
-            wordLength = end - start;
-        }
-
-        // the word is the first command, check its length for validitiy
-        if (cmd->argc == 0)
-        {
-            if (wordLength > EXE_MAX)
-            {
-                free(trimmedCmd);
-                free(start);
-                return ERR_CMD_OR_ARGS_TOO_BIG;
-            }
-        }
-        // this is an argument word instead, increment the length and check if it is too big
-        else
-        {
-            // if the current word is a quote, find the next quote location in the cmd_line, and add the entire string from quote to quote to a running string
-            if (*start == '\"')
-            {
-                start++;
-
-                // if the start + 1 is invalid, the quote has no end quote, for now, assume that is not the case
-                end = strchr(start, '\"');
-                wordLength = end - start;
-            }
-
-            // continuously add the strings to a running size and do size checks of ARG_MAX
-            lengthOfArgs += wordLength;
-            if (lengthOfArgs > ARG_MAX)
-            {
-                free(trimmedCmd);
-                free(start);
-                return ERR_CMD_OR_ARGS_TOO_BIG;
-            }
-        }
-
-        // copy the word into argv and end it with a null terminator
-        strncpy(cmd->argv[cmd->argc], start, wordLength);
-        cmd->argv[cmd->argc][wordLength] = '\0';
-
-        // increment the number of words in the command
-        cmd->argc++;
-
-        // continue looping to the next word
-        free(start);
-        start = trim_lead_and_trail_spaces(end);
+        return ERR_MEMORY;
     }
 
-    // remember to free strings once no longer needed
-    free(start);
+    // trim whitespace and copy it to the new string
+    int trimRc = strtrimcpy(trimmed, cmd_line);
+    if (trimRc != OK)
+    {
+        free(trimmed);
+        return trimRc;
+    }
 
-    // if there were no iterations, then there was no command
+    // set up pointer for token parsing
+    char *p = trimmed;
+    int lengthOfArgs = 0;
+    cmd->argc = 0;
+    while (*p != '\0')
+    {
+        // skip extra space in the token
+        while (*p == SPACE_CHAR)
+        {
+            p++;
+        }
+
+        // if we happen to reach the end already, just exit the loop
+        if (*p == '\0')
+        {
+            break;
+        }
+
+        // setup the start and lengths for the tokens for copying
+        char *tokenStart = p;
+        int tokenLength = 0;
+
+        // if the token has a quote, handle the entire quote as a single string
+        if (*p == '\"')
+        {
+            // handle quoted token
+            tokenStart = ++p; // skip the opening quote
+            while (*p != '\0' && *p != '\"')
+            {
+                tokenLength++;
+                p++;
+            }
+
+            // if a closing quote is found, skip it
+            if (*p == '\"')
+            {
+                p++;
+            }
+        }
+        else
+        {
+            // the token is unquoted, so perform a normal operation
+            while (*p != '\0' && *p != SPACE_CHAR)
+            {
+                tokenLength++;
+                p++;
+            }
+        }
+
+        // validate token length based on whether its the command or an argument
+        if (cmd->argc == 0)
+        {
+            if (tokenLength > EXE_MAX)
+            {
+                free(trimmed);
+                return ERR_CMD_OR_ARGS_TOO_BIG;
+            }
+        }
+        else
+        {
+            lengthOfArgs += tokenLength;
+            if (lengthOfArgs > ARG_MAX)
+            {
+                free(trimmed);
+                return ERR_CMD_OR_ARGS_TOO_BIG;
+            }
+        }
+
+        // copy the token into argv and end it with a null terminator
+        strncpy(cmd->argv[cmd->argc], tokenStart, tokenLength);
+        cmd->argv[cmd->argc][tokenLength] = '\0';
+        cmd->argc++;
+    }
+
+    free(trimmed);
+
+    // if there were no tokens, then send the warning
     if (cmd->argc == 0)
     {
         return WARN_NO_CMDS;
     }
 
-    // finally, set the last array position in argv to '\0'
+    // finally, set the last array position in argv to "\0" string
     strcpy(cmd->argv[cmd->argc], "\0");
 
     return OK;
@@ -310,6 +336,11 @@ int exec_local_cmd_loop()
         // build the command buffer
         rc = build_cmd_buff(cmd_buff, cmd);
 
+        for (int i = 0; i < cmd->argc; i++)
+        {
+            printf("%s\n", cmd->argv[i]);
+        }
+
         // Check for any return errors after bulding cmd_list
         switch (rc)
         {
@@ -338,7 +369,32 @@ int exec_local_cmd_loop()
             // Not a built in command, perform fork/exec
             else
             {
-                
+                // fork the current shell process
+                int f_result, c_result;
+
+                f_result = fork();
+                if (f_result < 0)
+                {
+                    perror("fork error");
+                }
+
+                // for the child process, we want to use exec to replace it with the command
+                if (f_result == 0)
+                {
+                    int childRc;
+                    childRc = execvp(cmd->argv[0], cmd->argv);
+                    if (childRc < 0)
+                    {
+                        // handle the error in case we failed to execute the command, child process exits prematurely
+                        perror("command error");
+                        exit(42);
+                    }
+                }
+                // for the parent process, we wait until the child is finished
+                else
+                {
+                    wait(&c_result);
+                }
             }
             break;
         }
