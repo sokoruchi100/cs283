@@ -202,8 +202,8 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd)
         return WARN_NO_CMDS;
     }
 
-    // finally, set the last array position in argv to "\0" string
-    strcpy(cmd->argv[cmd->argc], "\0");
+    // finally, set the last array position to be null
+    cmd->argv[cmd->argc] = NULL;
 
     return OK;
 }
@@ -314,9 +314,18 @@ int exec_local_cmd_loop()
 
     // initialize the cmd struct
     cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
+    if (cmd == NULL)
+    {
+        free(cmd_buff);
+        return ERR_MEMORY;
+    }
+
+    // allocate data to the cmd_buff
     rc = alloc_cmd_buff(cmd);
     if (rc < 0)
     {
+        free(cmd);
+        free(cmd_buff);
         return ERR_MEMORY;
     }
 
@@ -324,7 +333,7 @@ int exec_local_cmd_loop()
     {
         // print the shell prompt and get the stdin
         printf("%s", SH_PROMPT);
-        if (fgets(cmd_buff, ARG_MAX, stdin) == NULL)
+        if (fgets(cmd_buff, SH_CMD_MAX, stdin) == NULL)
         {
             printf("\n");
             break;
@@ -333,74 +342,66 @@ int exec_local_cmd_loop()
         // remove the trailing \n from cmd_buff
         cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
 
+        // clear the data within the cmd_buff before filling it in
+        clear_cmd_buff(cmd);
+
         // build the command buffer
         rc = build_cmd_buff(cmd_buff, cmd);
 
-        for (int i = 0; i < cmd->argc; i++)
+        // Check for any return errors after bulding cmd_list
+        if (rc == WARN_NO_CMDS)
         {
-            printf("%s\n", cmd->argv[i]);
+            printf(CMD_WARN_NO_CMD);
+            continue;
+        }
+        else if (rc == ERR_CMD_OR_ARGS_TOO_BIG)
+        {
+            printf(CMD_ERR_CMD_OR_ARGS_TOO_BIG);
+            continue;
         }
 
-        // Check for any return errors after bulding cmd_list
-        switch (rc)
+        // check for matching built in commands
+        Built_In_Cmds matchedCommand = match_command(cmd->argv[0]);
+        if (matchedCommand != BI_NOT_BI)
         {
-        case WARN_NO_CMDS:
-            printf(CMD_WARN_NO_CMD);
-            break;
-        case ERR_CMD_OR_ARGS_TOO_BIG:
-            printf(CMD_ERR_CMD_OR_ARGS_TOO_BIG);
-            break;
-        default:
-            Built_In_Cmds matchedCommand = match_command(cmd->argv[0]);
+            Built_In_Cmds cmd_rc = exec_built_in_cmd(cmd);
 
-            // perform built in logic
-            if (matchedCommand != BI_NOT_BI)
+            // exit command was called
+            if (cmd_rc == BI_RC)
             {
-                Built_In_Cmds cmd_rc = exec_built_in_cmd(cmd);
+                exitFlag = 1;
+            }
+        }
+        else
+        {
+            // not a built in command, use fork/exec pattern
+            // fork the current shell process
+            int f_result, c_result;
 
-                // exit command was called
-                if (cmd_rc == BI_RC)
+            f_result = fork();
+            if (f_result < 0)
+            {
+                perror("fork error");
+                rc = ERR_MEMORY;
+                break;
+            }
+            else if (f_result == 0)
+            {
+                // for the child process, we want to use exec to replace it with the command
+                int childRc = execvp(cmd->argv[0], cmd->argv);
+                if (childRc < 0)
                 {
-                    exitFlag = 1;
+                    // handle the error in case we failed to execute the command, child process exits prematurely
+                    perror("command error");
+                    exit(42);
                 }
             }
-            // TODO IMPLEMENT if not built-in command, fork/exec as an external command
-            // for example, if the user input is "ls -l", you would fork/exec the command "ls" with the arg "-l"
-            // Not a built in command, perform fork/exec
             else
             {
-                // fork the current shell process
-                int f_result, c_result;
-
-                f_result = fork();
-                if (f_result < 0)
-                {
-                    perror("fork error");
-                }
-
-                // for the child process, we want to use exec to replace it with the command
-                if (f_result == 0)
-                {
-                    int childRc;
-                    childRc = execvp(cmd->argv[0], cmd->argv);
-                    if (childRc < 0)
-                    {
-                        // handle the error in case we failed to execute the command, child process exits prematurely
-                        perror("command error");
-                        exit(42);
-                    }
-                }
                 // for the parent process, we wait until the child is finished
-                else
-                {
-                    wait(&c_result);
-                }
+                wait(&c_result);
             }
-            break;
         }
-
-        // clear the data within the cmd_buff for the next command
-        clear_cmd_buff(cmd);
 
         if (exitFlag)
         {
