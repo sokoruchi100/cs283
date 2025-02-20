@@ -8,6 +8,44 @@
 #include <sys/wait.h>
 #include "dshlib.h"
 
+// takes a string sets the pointer to the first non whitespace character
+// then it finds the length of the true string without the trailing space
+// copies the trimmed string into a new string and returns it
+char *trim_lead_and_trail_spaces(char *string)
+{
+    // just in case to help in loop logic
+    if (string == NULL)
+    {
+        return NULL;
+    }
+
+    for (int i = 0; i < (int)strlen(string); i++)
+    {
+        if (string[i] != SPACE_CHAR)
+        {
+            // set the pointer to the first not whitespace char
+            string += i;
+            break;
+        }
+    }
+
+    int trueLength = strlen(string);
+    for (int i = strlen(string) - 1; i >= 0; i--)
+    {
+        if (string[i] != SPACE_CHAR)
+        {
+            trueLength = i + 1;
+            break;
+        }
+    }
+
+    char *trimmedCmd = malloc(trueLength + 1);
+    strncpy(trimmedCmd, string, trueLength);
+    trimmedCmd[trueLength] = '\0';
+
+    return trimmedCmd;
+}
+
 // helper function to allocate memory
 int alloc_cmd_buff(cmd_buff_t *cmd_buff)
 {
@@ -61,39 +99,76 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd)
     // copy the original cmd_line to the cmd buffer
     strcpy(cmd->_cmd_buffer, cmd_line);
 
-    // use strtok to get non whitespace tokens of the command
-    int totalArgSize = 0;
-    char *tok = strtok(cmd_line, SPACE_STRING);
-    while (tok != NULL)
+    // trim whitespace from the front and back
+    char *trimmedCmd = trim_lead_and_trail_spaces(cmd_line);
+
+    // useful variables to notify the start and end of each word
+    char *start = trimmedCmd;
+    char *end;
+    int lengthOfArgs = 0;
+    while (start != NULL)
     {
-        // the first token is the command - Check if it is within the max size
+        // start by obtaining the end char position
+        end = strchr(start, SPACE_CHAR);
+
+        // Obtain the length of the word
+        int wordLength;
+        if (end == NULL)
+        {
+            wordLength = strlen(start);
+        }
+        else
+        {
+            wordLength = end - start;
+        }
+
+        // the word is the first command, check its length for validitiy
         if (cmd->argc == 0)
         {
-            if (strlen(tok) > EXE_MAX)
+            if (wordLength > EXE_MAX)
             {
+                free(trimmedCmd);
+                free(start);
+                return ERR_CMD_OR_ARGS_TOO_BIG;
+            }
+        }
+        // this is an argument word instead, increment the length and check if it is too big
+        else
+        {
+            // if the current word is a quote, find the next quote location in the cmd_line, and add the entire string from quote to quote to a running string
+            if (*start == '\"')
+            {
+                start++;
+
+                // if the start + 1 is invalid, the quote has no end quote, for now, assume that is not the case
+                end = strchr(start, '\"');
+                wordLength = end - start;
+            }
+
+            // continuously add the strings to a running size and do size checks of ARG_MAX
+            lengthOfArgs += wordLength;
+            if (lengthOfArgs > ARG_MAX)
+            {
+                free(trimmedCmd);
+                free(start);
                 return ERR_CMD_OR_ARGS_TOO_BIG;
             }
         }
 
-        // the other tokens are arguments - increment the arg size
-        else
-        {
-            totalArgSize += strlen(tok);
-        }
+        // copy the word into argv and end it with a null terminator
+        strncpy(cmd->argv[cmd->argc], start, wordLength);
+        cmd->argv[cmd->argc][wordLength] = '\0';
 
-        // store each token string within argv in their correct order
-        strcpy(cmd->argv[cmd->argc], tok);
-
-        // as it iterates, increment argc
+        // increment the number of words in the command
         cmd->argc++;
-        tok = strtok(NULL, SPACE_STRING);
+
+        // continue looping to the next word
+        free(start);
+        start = trim_lead_and_trail_spaces(end);
     }
 
-    // check if the arg size went over the max
-    if (totalArgSize > ARG_MAX)
-    {
-        return ERR_CMD_OR_ARGS_TOO_BIG;
-    }
+    // remember to free strings once no longer needed
+    free(start);
 
     // if there were no iterations, then there was no command
     if (cmd->argc == 0)
@@ -209,6 +284,7 @@ int exec_local_cmd_loop()
     }
 
     int rc = 0;
+    int exitFlag = 0;
 
     // initialize the cmd struct
     cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
@@ -235,20 +311,15 @@ int exec_local_cmd_loop()
         rc = build_cmd_buff(cmd_buff, cmd);
 
         // Check for any return errors after bulding cmd_list
-        if (rc == WARN_NO_CMDS)
+        switch (rc)
         {
+        case WARN_NO_CMDS:
             printf(CMD_WARN_NO_CMD);
-        }
-
-        if (rc == ERR_CMD_OR_ARGS_TOO_BIG)
-        {
-            printf("error: command or arguments were too big\n");
-        }
-
-        // handle appropriate commands and printing
-        if (rc == OK)
-        {
-
+            break;
+        case ERR_CMD_OR_ARGS_TOO_BIG:
+            printf(CMD_ERR_CMD_OR_ARGS_TOO_BIG);
+            break;
+        default:
             Built_In_Cmds matchedCommand = match_command(cmd->argv[0]);
 
             // perform built in logic
@@ -259,7 +330,7 @@ int exec_local_cmd_loop()
                 // exit command was called
                 if (cmd_rc == BI_RC)
                 {
-                    break;
+                    exitFlag = 1;
                 }
             }
             // TODO IMPLEMENT if not built-in command, fork/exec as an external command
@@ -267,11 +338,18 @@ int exec_local_cmd_loop()
             // Not a built in command, perform fork/exec
             else
             {
+                
             }
+            break;
         }
 
         // clear the data within the cmd_buff for the next command
         clear_cmd_buff(cmd);
+
+        if (exitFlag)
+        {
+            break;
+        }
     }
 
     // remember to free the memory
