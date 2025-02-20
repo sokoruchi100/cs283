@@ -13,7 +13,7 @@
 @test "Change directory" {
     current=$(pwd)
 
-    cd ~/tmp
+    cd /home/dct55/tmp
     mkdir -p dsh-test
 
     run "${current}/dsh" <<EOF                
@@ -25,7 +25,7 @@ EOF
     stripped_output=$(echo "$output" | tr -d '[:space:]')
 
     # Expected output with all whitespace removed for easier matching
-    expected_output="~/tmp/dsh-testdsh2>dsh2>dsh2>cmdloopreturned0"
+    expected_output="/home/dct55/tmp/dsh-testdsh2>dsh2>dsh2>cmdloopreturned0"
 
     # These echo commands will help with debugging and will only print
     #if the test fails
@@ -44,7 +44,7 @@ EOF
 @test "Change directory - no args" {
     current=$(pwd)
 
-    cd ~/tmp
+    cd /home/dct55/tmp
     mkdir -p dsh-test
 
     run "${current}/dsh" <<EOF                
@@ -56,7 +56,7 @@ EOF
     stripped_output=$(echo "$output" | tr -d '[:space:]')
 
     # Expected output with all whitespace removed for easier matching
-    expected_output="~/tmpdsh2>dsh2>dsh2>cmdloopreturned0"
+    expected_output="/home/dct55/tmpdsh2>dsh2>dsh2>cmdloopreturned0"
 
     # These echo commands will help with debugging and will only print
     #if the test fails

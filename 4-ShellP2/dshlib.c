@@ -55,17 +55,13 @@ int strtrimcpy(char *newStr, char *oldStr)
 // helper function to allocate memory
 int alloc_cmd_buff(cmd_buff_t *cmd_buff)
 {
-    if (cmd_buff == NULL)
-    {
-        return ERR_MEMORY;
-    }
-
+    // nullify every string in the array for now, this will be built in the build function
     for (int i = 0; i < CMD_ARGV_MAX; i++)
     {
-        cmd_buff->argv[i] = calloc(ARG_MAX, sizeof(char));
-        if (cmd_buff->argv[i] == NULL)
+        if (cmd_buff->argv[i] != NULL)
         {
-            return ERR_MEMORY;
+            free(cmd_buff->argv[i]);
+            cmd_buff->argv[i] = NULL;
         }
     }
 
@@ -73,13 +69,18 @@ int alloc_cmd_buff(cmd_buff_t *cmd_buff)
     return OK;
 }
 
-// helper function to clear the memory
+// helper function to free the memory
 int free_cmd_buff(cmd_buff_t *cmd_buff)
 {
     for (int i = 0; i < CMD_ARGV_MAX; i++)
     {
-        free(cmd_buff->argv[i]);
+        if (cmd_buff->argv[i] != NULL)
+        {
+            free(cmd_buff->argv[i]);
+            cmd_buff->argv[i] = NULL;
+        }
     }
+
     free(cmd_buff->_cmd_buffer);
     free(cmd_buff);
 
@@ -90,9 +91,15 @@ int free_cmd_buff(cmd_buff_t *cmd_buff)
 int clear_cmd_buff(cmd_buff_t *cmd_buff)
 {
     cmd_buff->argc = 0;
+
+    // clears argv by freeing char pointers and setting them to null
     for (int i = 0; i < CMD_ARGV_MAX; i++)
     {
-        strcpy(cmd_buff->argv[i], "\0");
+        if (cmd_buff->argv[i] != NULL)
+        {
+            free(cmd_buff->argv[i]);
+            cmd_buff->argv[i] = NULL;
+        }
     }
     strcpy(cmd_buff->_cmd_buffer, "\0");
 
@@ -188,7 +195,13 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd)
             }
         }
 
-        // copy the token into argv and end it with a null terminator
+        // allocate memory then copy the token into argv and end it with a null terminator
+        cmd->argv[cmd->argc] = malloc(tokenLength + 1);
+        if (cmd->argv[cmd->argc] == NULL)
+        {
+            free(trimmed);
+            return ERR_MEMORY;
+        }
         strncpy(cmd->argv[cmd->argc], tokenStart, tokenLength);
         cmd->argv[cmd->argc][tokenLength] = '\0';
         cmd->argc++;
@@ -235,26 +248,20 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd)
 {
     Built_In_Cmds commandCode = match_command(cmd->argv[0]);
 
-    if (commandCode == BI_CMD_EXIT)
+    switch (commandCode)
     {
-        return BI_RC;
-    }
-
-    if (commandCode == BI_CMD_DRAGON)
-    {
+    case BI_CMD_DRAGON:
         print_dragon();
-    }
-
-    // the cd command should chdir to the provided directory; if no directory is provided, do nothing
-    if (commandCode == BI_CMD_CD)
-    {
+        return BI_CMD_DRAGON;
+    case BI_CMD_CD:
         if (cmd->argc == 2)
         {
             chdir(cmd->argv[1]);
         }
+        return BI_CMD_CD;
+    default:
+        return commandCode;
     }
-
-    return BI_EXECUTED;
 }
 
 /*
@@ -310,7 +317,6 @@ int exec_local_cmd_loop()
     }
 
     int rc = 0;
-    int exitFlag = 0;
 
     // initialize the cmd struct
     cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
@@ -360,29 +366,23 @@ int exec_local_cmd_loop()
             continue;
         }
 
-        // check for matching built in commands
-        Built_In_Cmds matchedCommand = match_command(cmd->argv[0]);
-        if (matchedCommand != BI_NOT_BI)
-        {
-            Built_In_Cmds cmd_rc = exec_built_in_cmd(cmd);
+        // attempt to perform the built in command
+        Built_In_Cmds cmd_rc = exec_built_in_cmd(cmd);
 
-            // exit command was called
-            if (cmd_rc == BI_RC)
-            {
-                exitFlag = 1;
-            }
-        }
-        else
+        // exit command was called
+        if (cmd_rc == BI_CMD_EXIT)
         {
-            // not a built in command, use fork/exec pattern
-            // fork the current shell process
+            break;
+        }
+        else if (cmd_rc == BI_NOT_BI)
+        {
+            // it was not a built in command, use fork/exec
             int f_result, c_result;
 
             f_result = fork();
             if (f_result < 0)
             {
-                perror("fork error");
-                rc = ERR_MEMORY;
+                printf(CMD_ERR_FORK);
                 break;
             }
             else if (f_result == 0)
@@ -392,8 +392,8 @@ int exec_local_cmd_loop()
                 if (childRc < 0)
                 {
                     // handle the error in case we failed to execute the command, child process exits prematurely
-                    perror("command error");
-                    exit(42);
+                    perror(CMD_ERR_EXECVP);
+                    exit(ERR_EXEC_CMD);
                 }
             }
             else
@@ -401,11 +401,6 @@ int exec_local_cmd_loop()
                 // for the parent process, we wait until the child is finished
                 wait(&c_result);
             }
-        }
-
-        if (exitFlag)
-        {
-            break;
         }
     }
 
