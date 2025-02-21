@@ -183,3 +183,33 @@ cmd loop returned 0"
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]
 }
+
+@test "comprehensive test: mkdir, cd, touch, uname, echo, ls, and pwd" {
+    run ./dsh <<EOF
+mkdir testdir
+touch testdir/"file 1.txt"
+cd testdir
+ls
+cd ..
+rm -rf testdir
+uname
+echo "hello world"
+pwd
+EOF
+
+    expected_output="file 1.txt
+Linux
+hello world
+/home/dct55/cs283/4-ShellP2
+dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> 
+cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "Expected Output:"
+    echo "$expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
