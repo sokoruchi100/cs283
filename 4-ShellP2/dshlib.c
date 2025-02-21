@@ -11,7 +11,7 @@
 // copies the oldStr into the newStr without any of the leading and trailing whitespace
 // does not mutate the old string or the new string
 // returns a return code in case bugs crop up
-int strtrimcpy(char *newStr, char *oldStr)
+int str_trim_cpy(char *newStr, char *oldStr)
 {
     // check for null pointers
     if (oldStr == NULL || newStr == NULL)
@@ -106,108 +106,149 @@ int clear_cmd_buff(cmd_buff_t *cmd_buff)
     return OK;
 }
 
+char *get_next_token(char **p, int *tokenLen)
+{
+    // skip any leading spaces
+    while (**p == SPACE_CHAR)
+    {
+        (*p)++;
+    }
+    if (**p == '\0')
+    {
+        return NULL;
+    }
+    char *start;
+    int len = 0;
+
+    // handle quoted tokens
+    if (**p == '\"')
+    {
+        (*p)++; // skip the opening quote
+        start = *p;
+        while (**p != '\0' && **p != '\"')
+        {
+            (*p)++;
+            len++;
+        }
+        if (**p == '\"')
+        {
+            (*p)++; // skip the closing quote
+        }
+    }
+    // handle unquoted tokens
+    else
+    {
+        start = *p;
+        while (**p != '\0' && **p != SPACE_CHAR)
+        {
+            (*p)++;
+            len++;
+        }
+    }
+    if (tokenLen)
+    {
+        *tokenLen = len;
+    }
+    return start;
+}
+
+int validate_token_length(cmd_buff_t *cmd, int tokenLen, int *totalArgLen)
+{
+    if (cmd->argc == 0)
+    {
+        if (tokenLen > EXE_MAX)
+        {
+            return ERR_CMD_OR_ARGS_TOO_BIG;
+        }
+    }
+    else
+    {
+        *totalArgLen += tokenLen;
+        if (*totalArgLen > ARG_MAX)
+        {
+            return ERR_CMD_OR_ARGS_TOO_BIG;
+        }
+    }
+    return OK;
+}
+
+int add_token(cmd_buff_t *cmd, char *tokenStart, int tokenLen)
+{
+    cmd->argv[cmd->argc] = malloc(tokenLen + 1);
+    if (cmd->argv[cmd->argc] == NULL)
+    {
+        return ERR_MEMORY;
+    }
+    strncpy(cmd->argv[cmd->argc], tokenStart, tokenLen);
+    cmd->argv[cmd->argc][tokenLen] = '\0';
+    cmd->argc++;
+
+    return OK;
+}
+
+int parse_cmd_line(cmd_buff_t *cmd, char *trimmed)
+{
+    // set up pointer for token parsing
+    char *p = trimmed;
+    int totalArgLen = 0;
+    cmd->argc = 0;
+    int rc = 0;
+
+    while (*p != '\0')
+    {
+        int tokenLen = 0;
+        char *tokenStart = get_next_token(&p, &tokenLen);
+        if (tokenStart == NULL)
+        {
+            rc = OK;
+            break;
+        }
+
+        // validate token length for the command or arguments
+        int validateRc = validate_token_length(cmd, tokenLen, &totalArgLen);
+        if (validateRc < 0)
+        {
+            rc = validateRc;
+            break;
+        }
+
+        // allocate memory for this token and copy it
+        int addTokenRc = add_token(cmd, tokenStart, tokenLen);
+        if (addTokenRc < 0)
+        {
+            rc = ERR_MEMORY;
+            break;
+        }
+    }
+
+    return rc;
+}
+
 // sets the argc and argv of the command with the proper values
 int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd)
 {
     // copy the original cmd_line to the cmd buffer
     strcpy(cmd->_cmd_buffer, cmd_line);
 
-    // allocate a buffer to hold the trimmed command
-    char *trimmed = malloc(strlen(cmd_line) + 1);
-    if (trimmed == NULL)
-    {
-        return ERR_MEMORY;
-    }
-
     // trim whitespace and copy it to the new string
-    int trimRc = strtrimcpy(trimmed, cmd_line);
+    char *trimmed = malloc(strlen(cmd_line) + 1);
+    int trimRc = str_trim_cpy(trimmed, cmd_line);
     if (trimRc != OK)
     {
         free(trimmed);
         return trimRc;
     }
 
-    // set up pointer for token parsing
-    char *p = trimmed;
-    int lengthOfArgs = 0;
-    cmd->argc = 0;
-    while (*p != '\0')
-    {
-        // skip extra space in the token
-        while (*p == SPACE_CHAR)
-        {
-            p++;
-        }
-
-        // if we happen to reach the end already, just exit the loop
-        if (*p == '\0')
-        {
-            break;
-        }
-
-        // setup the start and lengths for the tokens for copying
-        char *tokenStart = p;
-        int tokenLength = 0;
-
-        // if the token has a quote, handle the entire quote as a single string
-        if (*p == '\"')
-        {
-            // handle quoted token
-            tokenStart = ++p; // skip the opening quote
-            while (*p != '\0' && *p != '\"')
-            {
-                tokenLength++;
-                p++;
-            }
-
-            // if a closing quote is found, skip it
-            if (*p == '\"')
-            {
-                p++;
-            }
-        }
-        else
-        {
-            // the token is unquoted, so perform a normal operation
-            while (*p != '\0' && *p != SPACE_CHAR)
-            {
-                tokenLength++;
-                p++;
-            }
-        }
-
-        // validate token length based on whether its the command or an argument
-        if (cmd->argc == 0)
-        {
-            if (tokenLength > EXE_MAX)
-            {
-                free(trimmed);
-                return ERR_CMD_OR_ARGS_TOO_BIG;
-            }
-        }
-        else
-        {
-            lengthOfArgs += tokenLength;
-            if (lengthOfArgs > ARG_MAX)
-            {
-                free(trimmed);
-                return ERR_CMD_OR_ARGS_TOO_BIG;
-            }
-        }
-
-        // allocate memory then copy the token into argv and end it with a null terminator
-        cmd->argv[cmd->argc] = malloc(tokenLength + 1);
-        if (cmd->argv[cmd->argc] == NULL)
-        {
-            free(trimmed);
-            return ERR_MEMORY;
-        }
-        strncpy(cmd->argv[cmd->argc], tokenStart, tokenLength);
-        cmd->argv[cmd->argc][tokenLength] = '\0';
-        cmd->argc++;
-    }
+    // parse the cmd_line with the trimmed version
+    int parseCmdLineRc = parse_cmd_line(cmd, trimmed);
 
     free(trimmed);
+
+    // check for any errors returned
+    if (parseCmdLineRc < 0)
+    {
+        return parseCmdLineRc;
+    }
 
     // if there were no tokens, then send the warning
     if (cmd->argc == 0)
@@ -264,6 +305,101 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd)
     }
 }
 
+// initializes the shell resources (command buffer and command structure)
+// on success, *pCmd and *pCmdBuff are allocated. Returns OK on success
+int init_shell(cmd_buff_t **pCmd, char **pCmdBuff)
+{
+    *pCmdBuff = malloc(SH_CMD_MAX);
+    if (*pCmdBuff == NULL)
+    {
+        return ERR_MEMORY;
+    }
+
+    *pCmd = malloc(sizeof(cmd_buff_t));
+    if (*pCmd == NULL)
+    {
+        free(*pCmdBuff);
+        return ERR_MEMORY;
+    }
+
+    int rc = alloc_cmd_buff(*pCmd);
+    if (rc != OK)
+    {
+        free(*pCmd);
+        free(*pCmdBuff);
+        return ERR_MEMORY;
+    }
+
+    return OK;
+}
+
+// cleans up shell resources
+void cleanup_shell(cmd_buff_t *cmd, char *cmd_buff)
+{
+    free_cmd_buff(cmd);
+    free(cmd_buff);
+}
+
+// reads input from stdin, prints the prompt, and removes the trailing newline
+// returns 0 if input was read, returns -1 on EOF to exit early
+int get_input(char *cmd_buff)
+{
+    printf("%s", SH_PROMPT);
+    if (fgets(cmd_buff, SH_CMD_MAX, stdin) == NULL)
+    {
+        printf("\n");
+        return EOF;
+    }
+    cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
+    return OK;
+}
+
+// clears and builds the command from the input buffer
+// returns OK if a valid command was built, or an error/warning code
+int process_cmd(char *cmd_buff, cmd_buff_t *cmd)
+{
+    clear_cmd_buff(cmd);
+    int rc = build_cmd_buff(cmd_buff, cmd);
+    if (rc == WARN_NO_CMDS)
+    {
+        printf(CMD_WARN_NO_CMD);
+    }
+    else if (rc == ERR_CMD_OR_ARGS_TOO_BIG)
+    {
+        printf(CMD_ERR_CMD_OR_ARGS_TOO_BIG);
+    }
+    return rc;
+}
+
+// forks and execs the command, only called if the built in command failed
+int exec_cmd(cmd_buff_t *cmd)
+{
+    int f_result = fork();
+    if (f_result < 0)
+    {
+        printf(CMD_ERR_FORK);
+        return ERR_MEMORY;
+    }
+    else if (f_result == 0)
+    {
+        // Child process execvp replaces the process
+        int childRc = execvp(cmd->argv[0], cmd->argv);
+        if (childRc < 0)
+        {
+            printf(CMD_ERR_EXECVP);
+            exit(ERR_EXEC_CMD);
+        }
+    }
+    else
+    {
+        // Parent process waits for child
+        int c_result;
+        wait(&c_result);
+    }
+
+    return OK;
+}
+
 /*
  * Implement your exec_local_cmd_loop function by building a loop that prompts the
  * user for input.  Use the SH_PROMPT constant from dshlib.h and then
@@ -309,103 +445,41 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd)
  */
 int exec_local_cmd_loop()
 {
-    // allocate memory for the cmd_buff
-    char *cmd_buff = malloc(SH_CMD_MAX);
-    if (cmd_buff == NULL)
+    char *cmd_buff = NULL;
+    cmd_buff_t *cmd = NULL;
+    int rc = init_shell(&cmd, &cmd_buff);
+    if (rc != OK)
     {
-        return ERR_MEMORY;
-    }
-
-    int rc = 0;
-
-    // initialize the cmd struct
-    cmd_buff_t *cmd = malloc(sizeof(cmd_buff_t));
-    if (cmd == NULL)
-    {
-        free(cmd_buff);
-        return ERR_MEMORY;
-    }
-
-    // allocate data to the cmd_buff
-    rc = alloc_cmd_buff(cmd);
-    if (rc < 0)
-    {
-        free(cmd);
-        free(cmd_buff);
-        return ERR_MEMORY;
+        return rc;
     }
 
     while (1)
     {
-        // print the shell prompt and get the stdin
-        printf("%s", SH_PROMPT);
-        if (fgets(cmd_buff, SH_CMD_MAX, stdin) == NULL)
+        // read input
+        if (get_input(cmd_buff) == EOF)
         {
-            printf("\n");
             break;
         }
 
-        // remove the trailing \n from cmd_buff
-        cmd_buff[strcspn(cmd_buff, "\n")] = '\0';
-
-        // clear the data within the cmd_buff before filling it in
-        clear_cmd_buff(cmd);
-
-        // build the command buffer
-        rc = build_cmd_buff(cmd_buff, cmd);
-
-        // Check for any return errors after bulding cmd_list
-        if (rc == WARN_NO_CMDS)
+        // process the input into tokens
+        rc = process_cmd(cmd_buff, cmd);
+        if (rc != OK)
         {
-            printf(CMD_WARN_NO_CMD);
-            continue;
-        }
-        else if (rc == ERR_CMD_OR_ARGS_TOO_BIG)
-        {
-            printf(CMD_ERR_CMD_OR_ARGS_TOO_BIG);
             continue;
         }
 
-        // attempt to perform the built in command
+        // execute the command
         Built_In_Cmds cmd_rc = exec_built_in_cmd(cmd);
-
-        // exit command was called
         if (cmd_rc == BI_CMD_EXIT)
         {
             break;
         }
         else if (cmd_rc == BI_NOT_BI)
         {
-            // it was not a built in command, use fork/exec
-            int f_result, c_result;
-
-            f_result = fork();
-            if (f_result < 0)
-            {
-                printf(CMD_ERR_FORK);
-                break;
-            }
-            else if (f_result == 0)
-            {
-                // for the child process, we want to use exec to replace it with the command
-                int childRc = execvp(cmd->argv[0], cmd->argv);
-                if (childRc < 0)
-                {
-                    // handle the error in case we failed to execute the command, child process exits prematurely
-                    perror(CMD_ERR_EXECVP);
-                    exit(ERR_EXEC_CMD);
-                }
-            }
-            else
-            {
-                // for the parent process, we wait until the child is finished
-                wait(&c_result);
-            }
+            exec_cmd(cmd);
         }
     }
 
-    // remember to free the memory
-    free_cmd_buff(cmd);
-    free(cmd_buff);
+    cleanup_shell(cmd, cmd_buff);
     return OK;
 }

@@ -4,10 +4,96 @@
 # 
 # Create your unit tests suit in this file
 
-@test "Example: check ls runs without errors" {
+@test "check ls runs without errors" {
     run ./dsh <<EOF                
 ls
 EOF
+
+    # Strip all whitespace (spaces, tabs, newlines) from the output
+    stripped_output=$(echo "$output" | tr -d '[:space:]')
+
+    # Expected output with all whitespace removed for easier matching
+    expected_output="batsdragon.cdshdsh_cli.cdshlib.cdshlib.hdsh-testmakefilequestions.mddsh2>dsh2>cmdloopreturned0"
+
+    # These echo commands will help with debugging and will only print
+    #if the test fails
+    echo "Captured stdout:" 
+    echo "Output: $output"
+    echo "Exit Status: $status"
+    echo "${stripped_output} -> ${expected_output}"
+
+    # Check exact match
+    [ "$stripped_output" = "$expected_output" ]
+
+    # Assertions
+    [ "$status" -eq 0 ]
+}
+
+@test "check echo works with leading, trailing, and inner spaces" {
+    run ./dsh <<EOF                
+         echo          hello      world               
+EOF
+
+    # Expected output needs white spaces to check for it
+    expected_output="hello world
+dsh2> dsh2> 
+cmd loop returned 0"
+
+    # These echo commands will help with debugging and will only print
+    #if the test fails
+    echo "Captured stdout:" 
+    echo "Output: $output"
+    echo "Exit Status: $status"
+    echo "${output} -> ${expected_output}"
+
+    # Check exact match
+    [ "$output" = "$expected_output" ]
+
+    # Assertions
+    [ "$status" -eq 0 ]
+}
+
+@test "check echo works with quotes" {
+    run ./dsh <<EOF                
+     echo          "hello      world"               
+EOF
+    # Expected output needs white spaces to check for it
+    expected_output="hello      world
+dsh2> dsh2> 
+cmd loop returned 0"
+
+    # These echo commands will help with debugging and will only print
+    #if the test fails
+    echo "Captured stdout:" 
+    echo "Output: $output"
+    echo "Exit Status: $status"
+    echo "${output} -> ${expected_output}"
+
+    # Check exact match
+    [ "$output" = "$expected_output" ]
+
+    # Assertions
+    [ "$status" -eq 0 ]
+}
+
+@test "check echo works with quotes within word" {
+    run ./dsh <<EOF                
+     echo   "hel"lo    world               
+EOF
+    # Expected output needs white spaces to check for it
+    expected_output="hello world
+dsh2> dsh2> 
+cmd loop returned 0"
+
+    # These echo commands will help with debugging and will only print
+    #if the test fails
+    echo "Captured stdout:" 
+    echo "Output: $output"
+    echo "Exit Status: $status"
+    echo "${output} -> ${expected_output}"
+
+    # Check exact match
+    [ "$output" = "$expected_output" ]
 
     # Assertions
     [ "$status" -eq 0 ]

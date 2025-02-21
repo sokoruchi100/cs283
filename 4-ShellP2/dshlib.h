@@ -51,6 +51,11 @@ int alloc_cmd_buff(cmd_buff_t *cmd_buff);
 int free_cmd_buff(cmd_buff_t *cmd_buff);
 int clear_cmd_buff(cmd_buff_t *cmd_buff);
 int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff);
+int str_trim_cpy(char *newStr, char *oldStr);
+char *get_next_token(char **p, int *tokenLen);
+int validate_token_length(cmd_buff_t *cmd, int tokenLen, int *totalArgLen);
+int add_token(cmd_buff_t *cmd, char *tokenStart, int tokenLen);
+int parse_cmd_line(cmd_buff_t *cmd, char *trimmed);
 
 // built in command stuff
 typedef enum
@@ -69,6 +74,10 @@ extern void print_dragon();
 // main execution context
 int exec_local_cmd_loop();
 int exec_cmd(cmd_buff_t *cmd);
+int process_cmd(char *cmd_buff, cmd_buff_t *cmd);
+int get_input(char *cmd_buff);
+void cleanup_shell(cmd_buff_t *cmd, char *cmd_buff);
+int init_shell(cmd_buff_t **pCmd, char **pCmdBuff);
 
 // output constants
 #define CMD_OK_HEADER "PARSED COMMAND LINE - TOTAL COMMANDS %d\n"
@@ -76,6 +85,6 @@ int exec_cmd(cmd_buff_t *cmd);
 #define CMD_ERR_PIPE_LIMIT "error: piping limited to %d commands\n"
 #define CMD_ERR_CMD_OR_ARGS_TOO_BIG "error: command or arguments were too big\n"
 #define CMD_ERR_FORK "error: could not fork the process\n"
-#define CMD_ERR_EXECVP "error: could not execute the program"
+#define CMD_ERR_EXECVP "error: could not execute the program\n"
 
 #endif
