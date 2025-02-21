@@ -6,7 +6,11 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <errno.h>
 #include "dshlib.h"
+
+// global variable to hold the last error return code for the child process
+int last_rc = 0;
 
 // copies the oldStr into the newStr without any of the leading and trailing whitespace
 // does not mutate the old string or the new string
@@ -291,6 +295,11 @@ Built_In_Cmds match_command(const char *input)
         return BI_CMD_CD;
     }
 
+    if (strcmp(input, RC_CMD) == 0)
+    {
+        return BI_RC;
+    }
+
     return BI_NOT_BI;
 }
 
@@ -310,6 +319,10 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd)
             chdir(cmd->argv[1]);
         }
         return BI_CMD_CD;
+    case BI_RC:
+        // print the last return code
+        printf("%d\n", last_rc);
+        return BI_RC;
     default:
         return commandCode;
     }
@@ -381,6 +394,35 @@ int process_cmd(char *cmd_buff, cmd_buff_t *cmd)
     return rc;
 }
 
+// prints the associated error message for each error type
+void output_exec_error(int err)
+{
+    switch (err)
+    {
+    case EPERM:
+        printf(CMD_ERR_EPERM);
+        break;
+    case ENOENT:
+        printf(CMD_ERR_ENOENT);
+        break;
+    case EACCES:
+        printf(CMD_ERR_EACCES);
+        break;
+    case E2BIG:
+        printf(CMD_ERR_E2BIG);
+        break;
+    case ENOEXEC:
+        printf(CMD_ERR_ENOEXEC);
+        break;
+    case EISDIR:
+        printf(CMD_ERR_EISDIR);
+        break;
+    default:
+        printf(CMD_ERR_EXECUTE);
+        break;
+    }
+}
+
 // forks and execs the command, only called if the built in command failed
 int exec_cmd(cmd_buff_t *cmd)
 {
@@ -394,10 +436,12 @@ int exec_cmd(cmd_buff_t *cmd)
     {
         // Child process execvp replaces the process
         int childRc = execvp(cmd->argv[0], cmd->argv);
+        // Check for common file related error codes
         if (childRc < 0)
         {
-            printf(CMD_ERR_EXECUTE);
-            exit(ERR_EXEC_CMD);
+            int err = errno;
+            output_exec_error(err);
+            exit(err); // exit with the error code
         }
     }
     else
@@ -405,6 +449,8 @@ int exec_cmd(cmd_buff_t *cmd)
         // Parent process waits for child
         int c_result;
         wait(&c_result);
+        int ret = WEXITSTATUS(c_result);
+        last_rc = ret; // save the child's return code to the global last_rc
     }
 
     return OK;

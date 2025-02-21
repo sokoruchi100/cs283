@@ -35,6 +35,7 @@ typedef struct command{
 #define EXIT_CMD "exit"
 #define DRAGON_CMD "dragon"
 #define CD_CMD "cd"
+#define RC_CMD "rc"
 
 // Standard Return Codes
 #define OK 0
@@ -86,5 +87,13 @@ int init_shell(cmd_buff_t **pCmd, char **pCmdBuff);
 #define CMD_ERR_CMD_OR_ARGS_TOO_BIG "error: command or arguments were too big\n"
 #define CMD_ERR_FORK "error: could not fork the process\n"
 #define CMD_ERR_EXECUTE "error: could not execute the program\n"
+
+// errno related output constants
+#define CMD_ERR_EPERM "Operation not permitted\n"
+#define CMD_ERR_ENOENT "Command not found in PATH\n"
+#define CMD_ERR_EACCES "Permission denied\n"
+#define CMD_ERR_E2BIG "Argument list too long\n"
+#define CMD_ERR_ENOEXEC "Exec format error\n"
+#define CMD_ERR_EISDIR "Is a directory\n"
 
 #endif

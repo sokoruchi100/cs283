@@ -171,7 +171,7 @@ cmd loop returned -1"
 foobar
 EOF
 
-    expected_output="dsh2> error: could not execute the program
+    expected_output="dsh2> Command not found in PATH
 dsh2> dsh2> 
 cmd loop returned 0"
 
@@ -202,6 +202,48 @@ Linux
 hello world
 /home/dct55/cs283/4-ShellP2
 dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> dsh2> 
+cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "Expected Output:"
+    echo "$expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "check rc command works on error" {
+    run ./dsh <<EOF
+not_exists
+rc
+EOF
+
+    expected_output="dsh2> Command not found in PATH
+dsh2> dsh2> 2
+dsh2> 
+cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "Expected Output:"
+    echo "$expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "check rc command works on success" {
+    run ./dsh <<EOF
+echo
+rc
+EOF
+
+    expected_output="
+dsh2> dsh2> 0
+dsh2> 
 cmd loop returned 0"
 
     echo "Captured stdout:" 
