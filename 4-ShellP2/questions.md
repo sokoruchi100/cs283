@@ -20,7 +20,7 @@
 
 6. Describe how your implementation of build_cmd_buff() handles quoted arguments. Why is this necessary?
 
-    > **Answer**:  In my implementation, if a token starts with a quote, we treat everything that comes after it as part of the argument, including the spaces, until another quote is reached, which ends the argument. This is necessary for handling arguments that contain spaces like file names or strings so they aren't split into separate tokens.
+    > **Answer**:  In my implementation, I create a new buffer to hold the token and iterate through the characters in the cmd_line. if the character is a quote, we treat everything that comes after it as part of the token, including the spaces, until another quote is reached. Afterwards, we continue to iterate normally if no quote is located. The iteration ends once we hit a space or the null terminator. This is necessary for handling arguments that contain spaces like file names or strings so they aren't split into separate tokens.
 
 7. What changes did you make to your parsing logic compared to the previous assignment? Were there any unexpected challenges in refactoring your old code?
 
