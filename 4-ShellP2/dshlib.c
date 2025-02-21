@@ -386,7 +386,7 @@ int exec_cmd(cmd_buff_t *cmd)
         int childRc = execvp(cmd->argv[0], cmd->argv);
         if (childRc < 0)
         {
-            printf(CMD_ERR_EXECVP);
+            printf(CMD_ERR_EXECUTE);
             exit(ERR_EXEC_CMD);
         }
     }
@@ -476,10 +476,13 @@ int exec_local_cmd_loop()
         }
         else if (cmd_rc == BI_NOT_BI)
         {
-            exec_cmd(cmd);
+            rc = exec_cmd(cmd);
+            if (rc != OK) {
+                break;
+            }
         }
     }
 
     cleanup_shell(cmd, cmd_buff);
-    return OK;
+    return rc;
 }
