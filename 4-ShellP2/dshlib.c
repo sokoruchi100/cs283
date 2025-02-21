@@ -117,39 +117,48 @@ char *get_next_token(char **p, int *tokenLen)
     {
         return NULL;
     }
-    char *start;
-    int len = 0;
 
-    // handle quoted tokens
-    if (**p == '\"')
+    // allocate a temporary buffer large enough for the token
+    int maxLen = strlen(*p);
+    char *token = malloc(maxLen + 1);
+    if (!token)
     {
-        (*p)++; // skip the opening quote
-        start = *p;
-        while (**p != '\0' && **p != '\"')
-        {
-            (*p)++;
-            len++;
-        }
+        return NULL; // memory allocation error
+    }
+    int pos = 0;
+
+    // read until a whitespace is encountered
+    while (**p != '\0' && **p != SPACE_CHAR)
+    {
+        // handle quotes within the token
         if (**p == '\"')
         {
-            (*p)++; // skip the closing quote
+            // skip the quote and keep copying until we reach the closing quote
+            (*p)++; // Skip the opening quote
+            while (**p != '\0' && **p != '\"')
+            {
+                token[pos++] = **p;
+                (*p)++;
+            }
+            if (**p == '\"')
+            {
+                (*p)++; // skip the closing quote
+            }
         }
-    }
-    // handle unquoted tokens
-    else
-    {
-        start = *p;
-        while (**p != '\0' && **p != SPACE_CHAR)
+        else
         {
+            // regular character: copy it
+            token[pos++] = **p;
             (*p)++;
-            len++;
         }
     }
+    // cap the token with a null terminator
+    token[pos] = '\0';
     if (tokenLen)
     {
-        *tokenLen = len;
+        *tokenLen = pos;
     }
-    return start;
+    return token;
 }
 
 int validate_token_length(cmd_buff_t *cmd, int tokenLen, int *totalArgLen)
@@ -197,8 +206,8 @@ int parse_cmd_line(cmd_buff_t *cmd, char *trimmed)
     while (*p != '\0')
     {
         int tokenLen = 0;
-        char *tokenStart = get_next_token(&p, &tokenLen);
-        if (tokenStart == NULL)
+        char *token = get_next_token(&p, &tokenLen);
+        if (token == NULL)
         {
             rc = OK;
             break;
@@ -209,11 +218,12 @@ int parse_cmd_line(cmd_buff_t *cmd, char *trimmed)
         if (validateRc < 0)
         {
             rc = validateRc;
+            free(token);
             break;
         }
 
-        // allocate memory for this token and copy it
-        int addTokenRc = add_token(cmd, tokenStart, tokenLen);
+        int addTokenRc = add_token(cmd, token, tokenLen);
+        free(token); // free the temporary token after adding it
         if (addTokenRc < 0)
         {
             rc = ERR_MEMORY;
@@ -477,7 +487,8 @@ int exec_local_cmd_loop()
         else if (cmd_rc == BI_NOT_BI)
         {
             rc = exec_cmd(cmd);
-            if (rc != OK) {
+            if (rc != OK)
+            {
                 break;
             }
         }

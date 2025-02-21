@@ -98,3 +98,88 @@ cmd loop returned 0"
     # Assertions
     [ "$status" -eq 0 ]
 }
+
+@test "check echo works with multiple quotes" {
+    run ./dsh <<EOF                
+   echo  "  "amazin" g way " to" form""" a"t " 
+EOF
+    # Expected output needs white spaces to check for it
+    expected_output="  amazin g way  to form at 
+dsh2> dsh2> 
+cmd loop returned 0"
+
+    # These echo commands will help with debugging and will only print
+    #if the test fails
+    echo "Captured stdout:" 
+    echo "Output: $output"
+    echo "Exit Status: $status"
+    echo "${output} -> ${expected_output}"
+
+    # Check exact match
+    [ "$output" = "$expected_output" ]
+
+    # Assertions
+    [ "$status" -eq 0 ]
+}
+
+@test "check exit command terminates shell" {
+    run ./dsh <<EOF                
+exit            
+EOF
+    # Expected output needs white spaces to check for it
+    expected_output="dsh2> cmd loop returned 0"
+
+    # These echo commands will help with debugging and will only print
+    #if the test fails
+    echo "Captured stdout:" 
+    echo "Output: $output"
+    echo "Exit Status: $status"
+    echo "${output} -> ${expected_output}"
+
+    # Check exact match
+    [ "$output" = "$expected_output" ]
+
+    # Assertions
+    [ "$status" -eq 0 ]
+}
+
+@test "check for no commands" {
+    run ./dsh <<EOF                
+
+EOF
+    # Expected output needs white spaces to check for it
+    expected_output="dsh2> warning: no commands provided
+dsh2> 
+cmd loop returned -1"
+
+    # These echo commands will help with debugging and will only print
+    #if the test fails
+    echo "Captured stdout:" 
+    echo "Output: $output"
+    echo "Exit Status: $status"
+    echo "${output} -> ${expected_output}"
+
+    # Check exact match
+    [ "$output" = "$expected_output" ]
+
+    # Assertions
+    [ "$status" -eq 0 ]
+}
+
+@test "check invalid command returns error" {
+    run ./dsh <<EOF
+foobar
+EOF
+
+    expected_output="dsh2> error: could not execute the program
+dsh2> dsh2> 
+cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "${output} -> ${expected_output}"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
