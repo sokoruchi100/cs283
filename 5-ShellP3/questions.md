@@ -1,15 +1,15 @@
 1. Your shell forks multiple child processes when executing piped commands. How does your implementation ensure that all child processes complete before the shell continues accepting user input? What would happen if you forgot to call waitpid() on all child processes?
 
-_answer here_
+To ensure that all child processes are complete before the shell continues accepting user input, I iterate through all child PIDs and call waitpid() on them. This blocking ensures that they complete before the shell continues to run, I also obtain their exit status codes this way. If I forgot to call waitpid, the child process would run while the parent runs, and if it dies, it won't get cleaned up, leading to a zombie process and leaking resources.
 
 2. The dup2() function is used to redirect input and output file descriptors. Explain why it is necessary to close unused pipe ends after calling dup2(). What could go wrong if you leave pipes open?
 
-_answer here_
+It's necessary to close unused pipe ends after calling dup2() because dup2 copies that source file descriptor to the target. This means the original is still left open and needs to be closed. If the write end is left open, the read end would not receive the EOF signal, leading it to be blocked. It would also waste system resources and data could leak if multiple processes attempt to read from or write to the same pipe.
 
 3. Your shell recognizes built-in commands (cd, exit, dragon). Unlike external commands, built-in commands do not require execvp(). Why is cd implemented as a built-in rather than an external command? What challenges would arise if cd were implemented as an external process?
 
-_answer here_
+If cd were an external process, the changes to the state, as in changing the directory, would only apply to the child process. When the shell forks and execs cd, if it were an external process, all of the changes would not be saved back to the parent shell process. Once it terminates, the parent's current directory would remain the same. This would make it ineffective and basically useless.
 
 4. Currently, your shell supports a fixed number of piped commands (CMD_MAX). How would you modify your implementation to allow an arbitrary number of piped commands while still handling memory allocation efficiently? What trade-offs would you need to consider?
 
-_answer here_
+To allow an arbitary number of commands while still handling memory allocation efficiently, I would use a dynamic data structure like a dynamic array or linked list to keep track of each command in this structure. That way, the command list is no longer static. Reallocating memory may be resource intensive if used extensively, and the program would be more complex if having to deal with this. There would also be potential problems with memory resource limits and I would have to handle for any potential errors in allocating memory.
