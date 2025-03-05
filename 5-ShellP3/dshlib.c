@@ -501,6 +501,77 @@ void output_exec_error(int err)
     }
 }
 
+int handle_redirection(int i, command_list_t *clist)
+{
+    // if first command, check if there is an input file
+    if (i == 0)
+    {
+        // iterate through the arguments to find if there is an input file
+        for (int j = 0; j < clist->commands[i].argc; j++)
+        {
+            if (strcmp(clist->commands[i].argv[j], "<") == 0)
+            {
+                // check if input file exists
+                if (clist->commands[i].argc <= j + 1)
+                {
+                    printf(CMD_ERR_REDIRECTION_FORMAT);
+                    exit(ERR_CMD_ARGS_BAD);
+                }
+
+                // open the file and set the input to the file
+                int fd = open(clist->commands[i].argv[j + 1], O_RDONLY);
+                if (fd < 0)
+                {
+                    int err = errno;
+                    output_exec_error(err);
+                    exit(err);
+                }
+                dup2(fd, STDIN_FILENO);
+                close(fd);
+
+                // set to null to avoid getting written as an argument
+                clist->commands[i].argv[j] = NULL;
+                return OK;
+            }
+        }
+    }
+
+    // if last command, check if there is an output file
+    if (i == clist->num - 1)
+    {
+        // iterate through the arguments to find if there is an output fila
+        for (int j = 0; j < clist->commands[i].argc; j++)
+        {
+            if (strcmp(clist->commands[i].argv[j], ">") == 0)
+            {
+                // check if output file exists
+                if (clist->commands[i].argc <= j + 1)
+                {
+                    printf(CMD_ERR_REDIRECTION_FORMAT);
+                    exit(ERR_CMD_ARGS_BAD);
+                }
+
+                // open the file for writing and set the output to the file
+                int fd = open(clist->commands[i].argv[j + 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (fd < 0)
+                {
+                    int err = errno;
+                    output_exec_error(err);
+                    exit(err);
+                }
+                dup2(fd, STDOUT_FILENO);
+                close(fd);
+
+                // set to null to avoid getting written as an argument
+                clist->commands[i].argv[j] = NULL;
+                return OK;
+            }
+        }
+    }
+
+    return OK;
+}
+
 // forks and execs the command, only called if the built in command failed
 int exec_cmd(command_list_t *clist, int pipes[][2], pid_t *pids, int i)
 {
@@ -514,6 +585,8 @@ int exec_cmd(command_list_t *clist, int pipes[][2], pid_t *pids, int i)
     // this is a child process
     if (pids[i] == 0)
     {
+        handle_redirection(i, clist);
+
         // if not the first command, set the input to the previous pipe
         if (i > 0)
         {

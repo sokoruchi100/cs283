@@ -103,6 +103,7 @@ int init_shell(command_list_t **pCmdList, char **pCmdBuff);
 #define CMD_WARN_NO_CMD "warning: no commands provided\n"
 #define CMD_ERR_PIPE_LIMIT "error: piping limited to %d commands\n"
 #define CMD_ERR_PIPE_FORMAT "error: piping is improperly formatted\n"
+#define CMD_ERR_REDIRECTION_FORMAT "error: redirection is improperly formatted\n"
 #define CMD_ERR_CMD_OR_ARGS_TOO_BIG "error: command or arguments were too big\n"
 #define CMD_ERR_FORK "error: could not fork the process\n"
 #define CMD_ERR_EXECUTE "error: could not execute the program\n"
