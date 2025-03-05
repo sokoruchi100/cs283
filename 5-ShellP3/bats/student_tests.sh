@@ -381,3 +381,96 @@ cmd loop returned -2"
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]
 }
+
+@test "output redirection" {
+    run ./dsh <<'EOF'
+echo "hello, class" > out.txt
+cat out.txt
+EOF
+
+    expected_output="hello, class
+dsh3> dsh3> dsh3> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up the output file
+    rm -f out.txt
+}
+
+@test "input redirection" {
+    # Create a temporary file with content
+    echo "input file content" > in.txt
+
+    run ./dsh <<'EOF'
+cat < in.txt
+EOF
+
+    expected_output="input file content
+dsh3> dsh3> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up the input file
+    rm -f in.txt
+}
+
+@test "piped redirection, combining all redirections and pipes" {
+    # Create a temporary input file
+    echo "Hello Pipe Test" > in.txt
+
+    run ./dsh <<'EOF'
+cat < in.txt | tr '[:upper:]' '[:lower:]' > out.txt
+cat out.txt
+EOF
+
+    expected_output="hello pipe test
+dsh3> dsh3> dsh3> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up both temporary files
+    rm -f in.txt out.txt
+}
+
+@test "redirection with append test" {
+    run ./dsh <<'EOF'
+echo "hello, class" > out.txt
+cat out.txt
+echo "this is line 2" >> out.txt
+cat out.txt
+EOF
+
+    expected_output="hello, class
+hello, class
+this is line 2
+dsh3> dsh3> dsh3> dsh3> dsh3> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up any temporary file created during the test
+    rm -f out.txt
+}

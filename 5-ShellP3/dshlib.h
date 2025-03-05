@@ -74,6 +74,9 @@ char *get_next_token(char **p, int *tokenLen);
 int validate_token_length(cmd_buff_t *cmd, int tokenLen, int *totalArgLen);
 int add_token(cmd_buff_t *cmd, char *tokenStart, int tokenLen);
 int parse_cmd_line(cmd_buff_t *cmd, char *trimmed);
+int perform_input_redirection(char **argv_ptr);
+int perform_output_redirection(char **argv_ptr, int flags);
+int handle_redirection(int i, command_list_t *clist);
 
 // built in command stuff
 typedef enum

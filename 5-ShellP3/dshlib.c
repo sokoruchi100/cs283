@@ -501,70 +501,82 @@ void output_exec_error(int err)
     }
 }
 
+// helper to handle input redirection ("<")
+int perform_input_redirection(char **argv_ptr)
+{
+    // check if the filename is missing
+    if (argv_ptr[1] == NULL)
+    {
+        printf(CMD_ERR_REDIRECTION_FORMAT);
+        exit(ERR_CMD_ARGS_BAD);
+    }
+    int fd = open(argv_ptr[1], O_RDONLY);
+    if (fd < 0)
+    {
+        int err = errno;
+        output_exec_error(err);
+        exit(err);
+    }
+    dup2(fd, STDIN_FILENO);
+    close(fd);
+    // set to null to prevent rest of arguments from being read
+    argv_ptr[0] = NULL;
+    return OK;
+}
+
+// Helper to handle output redirection (">" or ">>")
+// 'flags' should be set appropriately for truncation or appending.
+int perform_output_redirection(char **argv_ptr, int flags)
+{
+    // check if the filename is missing
+    if (argv_ptr[1] == NULL)
+    {
+        printf(CMD_ERR_REDIRECTION_FORMAT);
+        exit(ERR_CMD_ARGS_BAD);
+    }
+    int fd = open(argv_ptr[1], flags, 0644);
+    if (fd < 0)
+    {
+        int err = errno;
+        output_exec_error(err);
+        exit(err);
+    }
+    dup2(fd, STDOUT_FILENO);
+    close(fd);
+    // set to null to prevent rest of arguments from being read
+    argv_ptr[0] = NULL;
+    return OK;
+}
+
+// handles the redirection of input and output for the command, also append
 int handle_redirection(int i, command_list_t *clist)
 {
-    // if first command, check if there is an input file
+    cmd_buff_t *cmd = &clist->commands[i];
+
+    // If this is the first command, check for input redirection.
     if (i == 0)
     {
-        // iterate through the arguments to find if there is an input file
-        for (int j = 0; j < clist->commands[i].argc; j++)
+        for (int j = 0; j < cmd->argc; j++)
         {
-            if (strcmp(clist->commands[i].argv[j], "<") == 0)
+            if (strcmp(cmd->argv[j], "<") == 0)
             {
-                // check if input file exists
-                if (clist->commands[i].argc <= j + 1)
-                {
-                    printf(CMD_ERR_REDIRECTION_FORMAT);
-                    exit(ERR_CMD_ARGS_BAD);
-                }
-
-                // open the file and set the input to the file
-                int fd = open(clist->commands[i].argv[j + 1], O_RDONLY);
-                if (fd < 0)
-                {
-                    int err = errno;
-                    output_exec_error(err);
-                    exit(err);
-                }
-                dup2(fd, STDIN_FILENO);
-                close(fd);
-
-                // set to null to avoid getting written as an argument
-                clist->commands[i].argv[j] = NULL;
-                return OK;
+                return perform_input_redirection(&cmd->argv[j]);
             }
         }
     }
 
-    // if last command, check if there is an output file
+    // If this is the last command, check for output redirection.
     if (i == clist->num - 1)
     {
-        // iterate through the arguments to find if there is an output fila
-        for (int j = 0; j < clist->commands[i].argc; j++)
+        for (int j = 0; j < cmd->argc; j++)
         {
-            if (strcmp(clist->commands[i].argv[j], ">") == 0)
+            if (strcmp(cmd->argv[j], ">") == 0)
             {
-                // check if output file exists
-                if (clist->commands[i].argc <= j + 1)
-                {
-                    printf(CMD_ERR_REDIRECTION_FORMAT);
-                    exit(ERR_CMD_ARGS_BAD);
-                }
-
-                // open the file for writing and set the output to the file
-                int fd = open(clist->commands[i].argv[j + 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
-                if (fd < 0)
-                {
-                    int err = errno;
-                    output_exec_error(err);
-                    exit(err);
-                }
-                dup2(fd, STDOUT_FILENO);
-                close(fd);
-
-                // set to null to avoid getting written as an argument
-                clist->commands[i].argv[j] = NULL;
-                return OK;
+                return perform_output_redirection(&cmd->argv[j], O_WRONLY | O_CREAT | O_TRUNC);
+            }
+            else if (strcmp(cmd->argv[j], ">>") == 0)
+            {
+                return perform_output_redirection(&cmd->argv[j], O_WRONLY | O_CREAT | O_APPEND);
             }
         }
     }
