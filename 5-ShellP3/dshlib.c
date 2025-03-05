@@ -65,11 +65,17 @@ int alloc_cmd_buff(cmd_buff_t *cmd_buff)
         if (cmd_buff->argv[i] != NULL)
         {
             free(cmd_buff->argv[i]);
-            cmd_buff->argv[i] = NULL;
         }
+        cmd_buff->argv[i] = NULL;
     }
+    cmd_buff->argc = 0;
 
     cmd_buff->_cmd_buffer = malloc(SH_CMD_MAX);
+    if (cmd_buff->_cmd_buffer == NULL)
+    {
+        return ERR_MEMORY;
+    }
+    cmd_buff->_cmd_buffer[0] = '\0'; // initialize as empty string
     return OK;
 }
 
@@ -372,6 +378,7 @@ int init_shell(command_list_t **pCmdList, char **pCmdBuff)
         free(*pCmdBuff);
         return ERR_MEMORY;
     }
+    memset(*pCmdList, 0, sizeof(command_list_t)); // zero out the memory
 
     // allocate the command buffer for each command in the list
     for (int i = 0; i < CMD_MAX; i++)
@@ -379,6 +386,11 @@ int init_shell(command_list_t **pCmdList, char **pCmdBuff)
         int rc = alloc_cmd_buff(&(*pCmdList)->commands[i]);
         if (rc != OK)
         {
+            // free them before returning an error
+            for (int j = 0; j < i; j++)
+            {
+                free_cmd_buff(&(*pCmdList)->commands[j]);
+            }
             free(*pCmdList);
             free(*pCmdBuff);
             return ERR_MEMORY;
