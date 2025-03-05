@@ -301,13 +301,82 @@ EOF
     expected_output="one
 three
 two
-dsh3> dsh3> dsh3> 
+dsh3> dsh3> 
 cmd loop returned 0"
 
-    echo "Captured stdout:" 
-    echo "$output"
+    echo "Captured stdout: $output"
     echo "Exit Status: $status"
-    echo "${output} -> ${expected_output}"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "poorly formatted pipe command: extra pipe" {
+    run ./dsh <<EOF
+echo "hello world" | | tr '[:lower:]' '[:upper:]'
+EOF
+
+    expected_output="dsh3> error: piping is improperly formatted
+dsh3> 
+cmd loop returned -1"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "piping with built-in command" {
+    # Get the expected pwd (converted to uppercase) from the test environment
+
+    run ./dsh <<EOF
+cd | pwd
+EOF
+
+    expected_output="/home/dct55/cs283/5-ShellP3
+dsh3> dsh3> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "multiple pipes together" {
+    run ./dsh <<'EOF'
+echo "Hello Pipe Test" | tr '[:upper:]' '[:lower:]' | awk '{print $2,$3}'
+EOF
+
+    expected_output="pipe test
+dsh3> dsh3> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "too many pipes" {
+    run ./dsh <<EOF
+echo | echo | echo | echo | echo | echo | echo | echo | echo | echo | echo | echo | echo
+EOF
+
+    expected_output="dsh3> error: piping limited to 8 commands
+dsh3> 
+cmd loop returned -2"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
 
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]

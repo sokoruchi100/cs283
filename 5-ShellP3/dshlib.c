@@ -144,7 +144,7 @@ char *get_next_token(char **p, int *tokenLen)
     while (**p != '\0' && **p != SPACE_CHAR)
     {
         // handle quotes within the token
-        if (**p == '\"')
+        if (**p == '\"') // handle double quotes
         {
             // skip the quote and keep copying until we reach the closing quote
             (*p)++; // Skip the opening quote
@@ -154,6 +154,20 @@ char *get_next_token(char **p, int *tokenLen)
                 (*p)++;
             }
             if (**p == '\"')
+            {
+                (*p)++; // skip the closing quote
+            }
+        }
+        else if (**p == '\'') // handle single quotes
+        {
+            // skip the quote and keep copying until we reach the closing quote
+            (*p)++; // Skip the opening quote
+            while (**p != '\0' && **p != '\'')
+            {
+                token[pos++] = **p;
+                (*p)++;
+            }
+            if (**p == '\'')
             {
                 (*p)++; // skip the closing quote
             }
@@ -424,7 +438,7 @@ int process_cmd_list(char *cmd_buff, command_list_t *cmd_list)
         int rc = build_cmd_buff(tok, &cmd_list->commands[cmd_list->num]);
         if (rc == WARN_NO_CMDS)
         {
-            printf(CMD_WARN_NO_CMD);
+            printf(CMD_ERR_PIPE_FORMAT);
             return rc;
         }
         else if (rc == ERR_CMD_OR_ARGS_TOO_BIG)
