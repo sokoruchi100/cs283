@@ -318,8 +318,7 @@ int exec_client_requests(int cli_socket)
         build_cmd_list(io_buff, cmd_list);
 
         // execute the cmd_list as a pipeline
-        // rsh_execute_pipeline(cli_socket, &cmd_list);
-        // for now we just echo the input back to the client
+        int cmd_rc = rsh_execute_pipeline(cli_socket, cmd_list);
 
         // sends the appropriate respones as a stream back to the client
         // - error constants for failures
@@ -329,6 +328,16 @@ int exec_client_requests(int cli_socket)
 
         // send eof back to the client to signal the end of the command
         send_message_eof(cli_socket);
+
+        if (cmd_rc == EXIT_SC)
+        {
+            break;
+        }
+        else if (cmd_rc == STOP_SERVER_SC)
+        {
+            rc = OK_EXIT;
+            break;
+        }
     }
 
     // cleanup
@@ -453,7 +462,26 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist)
 
     for (int i = 0; i < clist->num; i++)
     {
-        // TODO this is basically the same as the piped fork/exec assignment, except for where you connect the begin and end of the pipeline (hint: cli_sock)
+        // execute built in commands or perform other action
+        bi_cmd = rsh_built_in_cmd(&clist->commands[i]);
+        if (bi_cmd == BI_CMD_EXIT)
+        {
+            // close the connection and open a new one
+            return EXIT_SC;
+        }
+        else if (bi_cmd == BI_CMD_STOP_SVR)
+        {
+            // close the connection and shutdown the server
+            return STOP_SERVER_SC;
+        }
+        else if (bi_cmd == BI_CMD_RC)
+        {
+            // perform rc command
+        }
+        else if (bi_cmd == BI_NOT_BI)
+        {
+            // fork/exec
+        }
 
         // TODO HINT you can dup2(cli_sock with STDIN_FILENO, STDOUT_FILENO, etc.
     }
