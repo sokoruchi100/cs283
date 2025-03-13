@@ -8,7 +8,7 @@
 // Constants for communication
 // Note that these should work fine in a local VM but you will likely have
 // to change the port number if you are working on tux.
-#define RDSH_DEF_PORT 1234               // Default port #
+#define RDSH_DEF_PORT 7982               // Default port #
 #define RDSH_DEF_SVR_INTFACE "0.0.0.0"   // Default start all interfaces
 #define RDSH_DEF_CLI_CONNECT "127.0.0.1" // Default server is running on
                                          // localhost 127.0.0.1

@@ -122,7 +122,29 @@ int boot_server(char *ifaces, int port)
 
     struct sockaddr_in addr;
 
-    // TODO set up the socket - this is very similar to the demo code
+    // create a TCP socket for IPv4
+    svr_socket = socket(AF_INET, SOCK_STREAM, 0);
+    if (svr_socket == -1)
+    {
+        printf(CMD_ERR_RDSH_COMM);
+        return ERR_RDSH_COMMUNICATION;
+    }
+
+    // force linux to allow us to reuse the port
+    int enable = 1;
+    setsockopt(svr_socket, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int));
+
+    // bind the socket to the interface and port
+    addr.sin_family = AF_INET;
+    addr.sin_addr.s_addr = inet_addr(ifaces);
+    addr.sin_port = htons(port);
+
+    ret = bind(svr_socket, (struct sockaddr *)&addr, sizeof(addr));
+    if (ret == -1)
+    {
+        printf(CMD_ERR_RDSH_COMM);
+        return ERR_RDSH_COMMUNICATION;
+    }
 
     /*
      * Prepare for accepting connections. The backlog size is set
@@ -497,9 +519,9 @@ Built_In_Cmds rsh_built_in_cmd(cmd_buff_t *cmd)
 
     switch (ctype)
     {
-    // case BI_CMD_DRAGON:
-    //     print_dragon();
-    //     return BI_EXECUTED;
+    case BI_CMD_DRAGON:
+        print_dragon();
+        return BI_EXECUTED;
     case BI_CMD_EXIT:
         return BI_CMD_EXIT;
     case BI_CMD_STOP_SVR:
