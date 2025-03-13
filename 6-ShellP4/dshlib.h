@@ -40,6 +40,9 @@ typedef struct command_list
 
 #define SH_PROMPT "dsh4> "
 #define EXIT_CMD "exit"
+#define DRAGON_CMD "dragon"
+#define CD_CMD "cd"
+#define RC_CMD "rc"
 #define RC_SC 99
 #define EXIT_SC 100
 
@@ -61,6 +64,16 @@ int build_cmd_buff(char *cmd_line, cmd_buff_t *cmd_buff);
 int close_cmd_buff(cmd_buff_t *cmd_buff);
 int build_cmd_list(char *cmd_line, command_list_t *clist);
 int free_cmd_list(command_list_t *cmd_lst);
+int clear_cmd_list(command_list_t *cmd_buff);
+int str_trim_cpy(char *newStr, char *oldStr);
+char *get_next_token(char **p, int *tokenLen);
+int validate_token_length(cmd_buff_t *cmd, int tokenLen, int *totalArgLen);
+int add_token(cmd_buff_t *cmd, char *tokenStart, int tokenLen);
+int parse_cmd_line(cmd_buff_t *cmd, char *trimmed);
+void output_exec_error(int err);
+int perform_input_redirection(char **argv_ptr);
+int perform_output_redirection(char **argv_ptr, int flags);
+int handle_redirection(int i, command_list_t *clist);
 
 // built in command stuff
 typedef enum
@@ -75,16 +88,34 @@ typedef enum
 } Built_In_Cmds;
 Built_In_Cmds match_command(const char *input);
 Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd);
+extern void print_dragon();
 
 // main execution context
 int exec_local_cmd_loop();
-int exec_cmd(cmd_buff_t *cmd);
+int exec_cmd(command_list_t *clist, int pipes[][2], pid_t *pids, int i);
 int execute_pipeline(command_list_t *clist);
+int process_cmd_list(char *cmd_buff, command_list_t *cmd_list);
+int get_input(char *cmd_buff);
+int init_shell(command_list_t **pCmdList, char **pCmdBuff);
 
 // output constants
 #define CMD_OK_HEADER "PARSED COMMAND LINE - TOTAL COMMANDS %d\n"
 #define CMD_WARN_NO_CMD "warning: no commands provided\n"
 #define CMD_ERR_PIPE_LIMIT "error: piping limited to %d commands\n"
+#define CMD_ERR_PIPE_FORMAT "error: piping is improperly formatted\n"
+#define CMD_ERR_REDIRECTION_FORMAT "error: redirection is improperly formatted\n"
+#define CMD_ERR_CMD_OR_ARGS_TOO_BIG "error: command or arguments were too big\n"
+#define CMD_ERR_FORK "error: could not fork the process\n"
+#define CMD_ERR_EXECUTE "error: could not execute the program\n"
+#define CMD_ERR_MEMORY "error: could not allocate memory\n"
 #define BI_NOT_IMPLEMENTED "not implemented"
+
+// errno related output constants
+#define CMD_ERR_EPERM "Operation not permitted\n"
+#define CMD_ERR_ENOENT "Command not found in PATH\n"
+#define CMD_ERR_EACCES "Permission denied\n"
+#define CMD_ERR_E2BIG "Argument list too long\n"
+#define CMD_ERR_ENOEXEC "Exec format error\n"
+#define CMD_ERR_EISDIR "Is a directory\n"
 
 #endif
