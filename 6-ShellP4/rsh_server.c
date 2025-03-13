@@ -278,16 +278,23 @@ int process_cli_requests(int svr_socket)
 int exec_client_requests(int cli_socket)
 {
     int io_size;
-    command_list_t cmd_list;
+    command_list_t *cmd_list;
     int rc;
     int cmd_rc;
     int last_rc;
     char *io_buff;
 
+    // allocate the command list
+    rc = alloc_cmd_list(&cmd_list);
+    if (rc != OK)
+    {
+        perror("malloc");
+        return rc;
+    }
     io_buff = malloc(RDSH_COMM_BUFF_SZ);
     if (io_buff == NULL)
     {
-        printf(CMD_ERR_RDSH_ITRNL, ERR_RDSH_SERVER);
+        perror("malloc");
         return ERR_RDSH_SERVER;
     }
 
@@ -305,10 +312,10 @@ int exec_client_requests(int cli_socket)
         }
 
         // ensure we clean the command list before processing
-        clear_cmd_list(&cmd_list);
+        clear_cmd_list(cmd_list);
 
         // build up the cmd_list struct
-        build_cmd_list(io_buff, &cmd_list);
+        build_cmd_list(io_buff, cmd_list);
 
         // execute the cmd_list as a pipeline
         // rsh_execute_pipeline(cli_socket, &cmd_list);

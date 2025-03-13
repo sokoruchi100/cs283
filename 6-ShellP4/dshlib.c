@@ -371,18 +371,11 @@ Built_In_Cmds exec_built_in_cmd(cmd_buff_t *cmd)
 
 // initializes the shell resources (command buffer and command structure)
 // on success, *pCmd and *pCmdBuff are allocated. Returns OK on success
-int init_shell(command_list_t **pCmdList, char **pCmdBuff)
+int alloc_cmd_list(command_list_t **pCmdList)
 {
-    *pCmdBuff = malloc(SH_CMD_MAX);
-    if (*pCmdBuff == NULL)
-    {
-        return ERR_MEMORY;
-    }
-
     *pCmdList = malloc(sizeof(command_list_t));
     if (*pCmdList == NULL)
     {
-        free(*pCmdBuff);
         return ERR_MEMORY;
     }
     memset(*pCmdList, 0, sizeof(command_list_t)); // zero out the memory
@@ -399,7 +392,6 @@ int init_shell(command_list_t **pCmdList, char **pCmdBuff)
                 free_cmd_buff(&(*pCmdList)->commands[j]);
             }
             free(*pCmdList);
-            free(*pCmdBuff);
             return ERR_MEMORY;
         }
     }
@@ -740,10 +732,16 @@ int exec_local_cmd_loop()
     char *cmd_buff = NULL;
     command_list_t *cmd_list = NULL;
 
-    int rc = init_shell(&cmd_list, &cmd_buff);
+    int rc = alloc_cmd_list(&cmd_list);
     if (rc != OK)
     {
         return rc;
+    }
+    cmd_buff = malloc(SH_CMD_MAX);
+    if (cmd_buff == NULL)
+    {
+        free_cmd_list(cmd_list);
+        return ERR_MEMORY;
     }
 
     while (1)
