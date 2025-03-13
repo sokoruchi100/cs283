@@ -421,7 +421,6 @@ int free_cmd_list(command_list_t *cmd_lst)
 // returns 0 if input was read, returns -1 on EOF to exit early
 int get_input(char *cmd_buff)
 {
-    printf("%s", SH_PROMPT);
     if (fgets(cmd_buff, SH_CMD_MAX, stdin) == NULL)
     {
         printf("\n");
@@ -431,14 +430,11 @@ int get_input(char *cmd_buff)
     return OK;
 }
 
-// processes the cmd_buff, builds the cmd_list, and handles errors
-int process_cmd_list(char *cmd_buff, command_list_t *cmd_list)
+// builds the cmd_list and its buffers handles errors
+int build_cmd_list(char *cmd_line, command_list_t *cmd_list)
 {
-    // ensure we clean the command list before processing
-    clear_cmd_list(cmd_list);
-
     // run strtok on cmd_list, seperate by pipes
-    char *tok = strtok(cmd_buff, PIPE_STRING);
+    char *tok = strtok(cmd_line, PIPE_STRING);
 
     // iterate through each command token
     int rc = 0;
@@ -752,14 +748,18 @@ int exec_local_cmd_loop()
 
     while (1)
     {
+        printf("%s", SH_PROMPT);
         // read input
         if (get_input(cmd_buff) == EOF)
         {
             break;
         }
 
+        // ensure we clean the command list before processing
+        clear_cmd_list(cmd_list);
+
         // process the cmd list of multiple commands being piped
-        rc = process_cmd_list(cmd_buff, cmd_list);
+        rc = build_cmd_list(cmd_buff, cmd_list);
         if (rc != OK)
         {
             continue;

@@ -209,8 +209,25 @@ int process_cli_requests(int svr_socket)
 
     while (1)
     {
-        // TODO use the accept syscall to create cli_socket
-        // and then exec_client_requests(cli_socket)
+        // uses the accept syscall to create cli_socket
+        cli_socket = accept(svr_socket, NULL, NULL);
+        if (cli_socket == -1)
+        {
+            printf(CMD_ERR_RDSH_COMM);
+            return ERR_RDSH_COMMUNICATION;
+        }
+
+        // and then execute the client requests
+        rc = exec_client_requests(cli_socket);
+        if (rc == OK_EXIT)
+        {
+            printf(RCMD_SERVER_EXITED);
+            break;
+        }
+        else if (rc < 0)
+        {
+            break;
+        }
     }
 
     stop_server(cli_socket);
@@ -270,26 +287,48 @@ int exec_client_requests(int cli_socket)
     io_buff = malloc(RDSH_COMM_BUFF_SZ);
     if (io_buff == NULL)
     {
+        printf(CMD_ERR_RDSH_ITRNL, ERR_RDSH_SERVER);
         return ERR_RDSH_SERVER;
     }
 
     while (1)
     {
-        // TODO use recv() syscall to get input
+        // clear the buffer beforehand
+        memset(io_buff, 0, RDSH_COMM_BUFF_SZ);
 
-        // TODO build up a cmd_list
+        // wait for the next data packet
+        rc = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ, 0);
+        if (rc == -1)
+        {
+            rc = ERR_RDSH_COMMUNICATION;
+            break;
+        }
 
-        // TODO rsh_execute_pipeline to run your cmd_list
+        // ensure we clean the command list before processing
+        clear_cmd_list(&cmd_list);
 
-        // TODO send appropriate respones with send_message_string
+        // build up the cmd_list struct
+        build_cmd_list(io_buff, &cmd_list);
+
+        // execute the cmd_list as a pipeline
+        // rsh_execute_pipeline(cli_socket, &cmd_list);
+        // for now we just echo the input back to the client
+
+        // sends the appropriate respones as a stream back to the client
         // - error constants for failures
         // - buffer contents from execute commands
         //  - etc.
+        send_message_string(cli_socket, io_buff);
 
-        // TODO send_message_eof when done
+        // send eof back to the client to signal the end of the command
+        send_message_eof(cli_socket);
     }
 
-    return WARN_RDSH_NOT_IMPL;
+    // cleanup
+    free(io_buff);
+    close(cli_socket);
+
+    return rc;
 }
 
 /*
@@ -339,8 +378,14 @@ int send_message_eof(int cli_socket)
  */
 int send_message_string(int cli_socket, char *buff)
 {
-    // TODO implement writing to cli_socket with send()
-    return WARN_RDSH_NOT_IMPL;
+    // writes the buffer back to the client
+    int ret = send(cli_socket, buff, strlen(buff), 0);
+    if (ret == -1)
+    {
+        return ERR_RDSH_COMMUNICATION;
+    }
+
+    return OK;
 }
 
 /*
