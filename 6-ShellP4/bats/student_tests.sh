@@ -501,3 +501,142 @@ cmd loop returned 0"
     # Clean up any temporary file created during the test
     rm -f out.txt
 }
+
+# These tests require a running server to connect to
+# The server must be running on the default port 7982
+@test "exiting the client" {
+    run ./dsh -c <<'EOF'
+exit
+EOF
+
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up any temporary file created during the test
+    rm -f out.txt
+}
+
+@test "exiting the client with a unique ip and port" {
+    run ./dsh -c -i 0.0.0.0 -p 7982 <<'EOF'
+exit
+EOF
+
+    expected_output="socket client mode:  addr:0.0.0.0:7982
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up any temporary file created during the test
+    rm -f out.txt
+}
+
+@test "dragon command on client" {
+    run ./dsh -c <<'EOF'
+dragon
+exit
+EOF
+
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4>                                                                         @%%%%                       
+                                                                     %%%%%%                         
+                                                                    %%%%%%                          
+                                                                 % %%%%%%%           @              
+                                                                %%%%%%%%%%        %%%%%%%           
+                                       %%%%%%%  %%%%@         %%%%%%%%%%%%@    %%%%%%  @%%%%        
+                                  %%%%%%%%%%%%%%%%%%%%%%      %%%%%%%%%%%%%%%%%%%%%%%%%%%%          
+                                %%%%%%%%%%%%%%%%%%%%%%%%%%   %%%%%%%%%%%% %%%%%%%%%%%%%%%           
+                               %%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%     %%%            
+                             %%%%%%%%%%%%%%%%%%%%%%%%%%%%@ @%%%%%%%%%%%%%%%%%%        %%            
+                            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%                
+                            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              
+                            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%@%%%%%%@              
+      %%%%%%%%@           %%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%      %%                
+    %%%%%%%%%%%%%         %%@%%%%%%%%%%%%           %%%%%%%%%%% %%%%%%%%%%%%      @%                
+  %%%%%%%%%%   %%%        %%%%%%%%%%%%%%            %%%%%%%%%%%%%%%%%%%%%%%%                        
+ %%%%%%%%%       %         %%%%%%%%%%%%%             %%%%%%%%%%%%@%%%%%%%%%%%                       
+%%%%%%%%%@                % %%%%%%%%%%%%%            @%%%%%%%%%%%%%%%%%%%%%%%%%                     
+%%%%%%%%@                 %%@%%%%%%%%%%%%            @%%%%%%%%%%%%%%%%%%%%%%%%%%%%                  
+%%%%%%%@                   %%%%%%%%%%%%%%%           %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              
+%%%%%%%%%%                  %%%%%%%%%%%%%%%          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%      %%%%  
+%%%%%%%%%@                   @%%%%%%%%%%%%%%         %%%%%%%%%%%%@ %%%% %%%%%%%%%%%%%%%%%   %%%%%%%%
+%%%%%%%%%%                  %%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%      %%%%%%%%%%%%%%%%%% %%%%%%%%%
+%%%%%%%%%@%%@                %%%%%%%%%%%%%%%%@       %%%%%%%%%%%%%%     %%%%%%%%%%%%%%%%%%%%%%%%  %%
+ %%%%%%%%%%                  % %%%%%%%%%%%%%%@        %%%%%%%%%%%%%%   %%%%%%%%%%%%%%%%%%%%%%%%%% %%
+  %%%%%%%%%%%%  @           %%%%%%%%%%%%%%%%%%        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%  %%% 
+   %%%%%%%%%%%%% %%  %  %@ %%%%%%%%%%%%%%%%%%          %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    %%% 
+    %%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%           @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%    %%%%%%% 
+     %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%              %%%%%%%%%%%%%%%%%%%%%%%%%%%%        %%%   
+      @%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                  %%%%%%%%%%%%%%%%%%%%%%%%%               
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                      %%%%%%%%%%%%%%%%%%%  %%%%%%%          
+           %%%%%%%%%%%%%%%%%%%%%%%%%%                           %%%%%%%%%%%%%%%  @%%%%%%%%%         
+              %%%%%%%%%%%%%%%%%%%%           @%@%                  @%%%%%%%%%%%%%%%%%%   %%%        
+                  %%%%%%%%%%%%%%%        %%%%%%%%%%                    %%%%%%%%%%%%%%%    %         
+                %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%                      %%%%%%%%%%%%%%            
+                %%%%%%%%%%%%%%%%%%%%%%%%%%  %%%% %%%                      %%%%%%%%%%  %%%@          
+                     %%%%%%%%%%%%%%%%%%% %%%%%% %%                          %%%%%%%%%%%%%@          
+                                                                                 %%%%%%%@       
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up any temporary file created during the test
+    rm -f out.txt
+}
+
+# stops the server from, running, must be second to last test
+@test "stop-server command on client, immediate exit" {
+    run ./dsh -c <<'EOF'
+stop-server
+EOF
+
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up any temporary file created during the test
+    rm -f out.txt
+}
+
+# This should be the last test in the file
+# It checks if the server is no longer running
+@test "should no longer be able to connect to server" {
+    run ./dsh -c <<'EOF'
+EOF
+
+    expected_output="start client: Connection refused
+socket client mode:  addr:127.0.0.1:7982
+cmd loop returned -52"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # Clean up any temporary file created during the test
+    rm -f out.txt
+}

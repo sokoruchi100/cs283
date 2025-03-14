@@ -164,8 +164,8 @@ int exec_remote_cmd_loop(char *address, int port)
             }
         }
 
-        // break on exit command
-        if (strcmp(cmd_buff, EXIT_CMD) == 0)
+        // break on exit command or stop-server command
+        if (strcmp(cmd_buff, EXIT_CMD) == 0 || strcmp(cmd_buff, "stop-server") == 0)
         {
             break;
         }

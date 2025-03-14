@@ -230,7 +230,6 @@ int process_cli_requests(int svr_socket)
         }
     }
 
-    stop_server(cli_socket);
     return rc;
 }
 
@@ -351,21 +350,23 @@ int exec_client_requests(int cli_socket)
         // execute the cmd_list as a pipeline
         cmd_rc = rsh_execute_pipeline(cli_socket, cmd_list);
 
-        // sends the appropriate respones as a stream back to the client
-        // - error constants for failures
-        // - buffer contents from execute commands
-        //  - etc.
-        send_message_string(cli_socket, cmd_buff);
+        // send back appropriate response
+        rc = send_message_eof(cli_socket);
 
-        // send eof back to the client to signal the end of the command
-        send_message_eof(cli_socket);
+        if (rc != OK)
+        {
+            printf(CMD_ERR_RDSH_COMM);
+            rc = ERR_RDSH_COMMUNICATION;
+            break;
+        }
 
         if (cmd_rc == EXIT_SC)
         {
             rc = OK;
             break;
         }
-        else if (cmd_rc == STOP_SERVER_SC)
+
+        if (cmd_rc == STOP_SERVER_SC)
         {
             rc = OK_EXIT;
             break;
@@ -435,7 +436,8 @@ int send_message_string(int cli_socket, char *buff)
         return ERR_RDSH_COMMUNICATION;
     }
 
-    return OK;
+    ret = send_message_eof(cli_socket);
+    return ret;
 }
 
 /*
@@ -496,28 +498,78 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist)
 
     for (int i = 0; i < clist->num; i++)
     {
-        // execute built in commands or perform other action
-        bi_cmd = rsh_built_in_cmd(&clist->commands[i]);
-        if (bi_cmd == BI_CMD_EXIT)
+        bi_cmd = rsh_match_command(clist->commands[i].argv[0]);
+        if (bi_cmd != BI_NOT_BI)
         {
-            // close the connection and open a new one
-            return EXIT_SC;
-        }
-        else if (bi_cmd == BI_CMD_STOP_SVR)
-        {
-            // close the connection and shutdown the server
-            return STOP_SERVER_SC;
-        }
-        else if (bi_cmd == BI_CMD_RC)
-        {
-            // perform rc command
-        }
-        else if (bi_cmd == BI_NOT_BI)
-        {
-            // fork/exec
-        }
+            int saved_stdin = 0;
+            int saved_stdout = 0;
+            int saved_stderr = 0;
+            // if the first or last commands are built in, link them to the client socket
+            if (i == 0 && !clist->commands[i].input_file)
+            {
+                // save the original stdin
+                saved_stdin = dup(STDIN_FILENO);
 
-        // TODO HINT you can dup2(cli_sock with STDIN_FILENO, STDOUT_FILENO, etc.
+                // link the stdin to the client socket
+                dup2(cli_sock, STDIN_FILENO);
+            }
+
+            if (i == clist->num - 1 && !clist->commands[i].output_file)
+            {
+                // save the original stdout and stderr
+                saved_stdout = dup(STDOUT_FILENO);
+                saved_stderr = dup(STDERR_FILENO);
+
+                // link the stdout and stderr to the client socket
+                dup2(cli_sock, STDOUT_FILENO);
+                dup2(cli_sock, STDERR_FILENO);
+            }
+
+            // built in command, doesn't need to be forked, labeled as -1
+            pids[i] = -1;
+
+            // execute the built in command
+            bi_cmd = rsh_built_in_cmd(&clist->commands[i]);
+            if (bi_cmd == BI_CMD_EXIT)
+            {
+                // store the exit command
+                pids_st[i] = EXIT_SC;
+            }
+            else if (bi_cmd == BI_CMD_STOP_SVR)
+            {
+                // store the stop-server command
+                pids_st[i] = STOP_SERVER_SC;
+            }
+            else if (bi_cmd == BI_CMD_RC)
+            {
+                // store the rc command
+                pids_st[i] = RC_SC;
+            }
+            else
+            {
+                // handle other built in commands as 0
+                pids_st[i] = 0;
+            }
+
+            // restore the original stdin, stdout, and stderr
+            if (i == 0 && !clist->commands[i].input_file)
+            {
+                dup2(saved_stdin, STDIN_FILENO);
+                close(saved_stdin);
+            }
+
+            if (i == clist->num - 1 && !clist->commands[i].output_file)
+            {
+                dup2(saved_stdout, STDOUT_FILENO);
+                dup2(saved_stderr, STDERR_FILENO);
+                close(saved_stdout);
+                close(saved_stderr);
+            }
+        }
+        else
+        {
+            // not a built in command, perform fork/exec
+        }
     }
 
     // Parent process: close all pipe ends
@@ -530,18 +582,29 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist)
     // Wait for all children
     for (int i = 0; i < clist->num; i++)
     {
-        waitpid(pids[i], &pids_st[i], 0);
+        // wait for forked children only
+        if (pids[i] != -1)
+        {
+            waitpid(pids[i], &pids_st[i], 0);
+        }
     }
 
     // by default get exit code of last process
     // use this as the return value
     exit_code = WEXITSTATUS(pids_st[clist->num - 1]);
+
+    // check if any of the commands in the pipeline are EXIT_SC or STOP_SERVER_SC
     for (int i = 0; i < clist->num; i++)
     {
-        // if any commands in the pipeline are EXIT_SC
-        // return that to enable the caller to react
-        if (WEXITSTATUS(pids_st[i]) == EXIT_SC)
+        if (pids_st[i] == EXIT_SC)
+        {
             exit_code = EXIT_SC;
+        }
+
+        if (pids_st[i] == STOP_SERVER_SC)
+        {
+            exit_code = STOP_SERVER_SC;
+        }
     }
     return exit_code;
 }
