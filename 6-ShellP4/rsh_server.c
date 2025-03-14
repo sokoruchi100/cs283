@@ -283,6 +283,7 @@ int exec_client_requests(int cli_socket)
     int cmd_rc;
     int last_rc;
     char *io_buff;
+    char *cmd_buff;
 
     // allocate the command list
     rc = alloc_cmd_list(&cmd_list);
@@ -291,8 +292,11 @@ int exec_client_requests(int cli_socket)
         perror("malloc");
         return rc;
     }
+
+    // allocate buffers for network recv and command storage
     io_buff = malloc(RDSH_COMM_BUFF_SZ);
-    if (io_buff == NULL)
+    cmd_buff = malloc(SH_CMD_MAX);
+    if (io_buff == NULL || cmd_buff == NULL)
     {
         perror("malloc");
         return ERR_RDSH_SERVER;
@@ -302,12 +306,39 @@ int exec_client_requests(int cli_socket)
     {
         // clear the buffer beforehand
         memset(io_buff, 0, RDSH_COMM_BUFF_SZ);
+        memset(cmd_buff, 0, SH_CMD_MAX);
 
         // wait for the next data packet
-        rc = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ, 0);
-        if (rc == -1)
+        while ((io_size = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ, 0)) > 0)
         {
-            rc = ERR_RDSH_COMMUNICATION;
+            // break if we have an error
+            if (io_size < 0)
+            {
+                rc = ERR_RDSH_COMMUNICATION;
+                break;
+            }
+
+            // break if no data, other side is closed
+            if (io_size == 0)
+            {
+                break;
+            }
+
+            // we have data, append the io_buff to the cmd_buff
+            strcat(cmd_buff, io_buff);
+
+            // check if we have the null character, if so we have the end of the command
+            if (io_buff[io_size - 1] == '\0')
+            {
+                // just to avoid the second break;
+                rc = 1;
+                break;
+            }
+        }
+
+        // break out of loop if there was an error or no data
+        if (rc <= 0)
+        {
             break;
         }
 
@@ -315,22 +346,23 @@ int exec_client_requests(int cli_socket)
         clear_cmd_list(cmd_list);
 
         // build up the cmd_list struct
-        build_cmd_list(io_buff, cmd_list);
+        build_cmd_list(cmd_buff, cmd_list);
 
         // execute the cmd_list as a pipeline
-        int cmd_rc = rsh_execute_pipeline(cli_socket, cmd_list);
+        cmd_rc = rsh_execute_pipeline(cli_socket, cmd_list);
 
         // sends the appropriate respones as a stream back to the client
         // - error constants for failures
         // - buffer contents from execute commands
         //  - etc.
-        send_message_string(cli_socket, io_buff);
+        send_message_string(cli_socket, cmd_buff);
 
         // send eof back to the client to signal the end of the command
         send_message_eof(cli_socket);
 
         if (cmd_rc == EXIT_SC)
         {
+            rc = OK;
             break;
         }
         else if (cmd_rc == STOP_SERVER_SC)
@@ -342,6 +374,8 @@ int exec_client_requests(int cli_socket)
 
     // cleanup
     free(io_buff);
+    free(cmd_buff);
+    free_cmd_list(cmd_list);
     close(cli_socket);
 
     return rc;
