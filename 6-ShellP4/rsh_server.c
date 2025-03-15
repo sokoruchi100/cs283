@@ -8,6 +8,7 @@
 #include <unistd.h>
 #include <sys/un.h>
 #include <fcntl.h>
+#include <errno.h>
 
 // INCLUDES for extra credit
 // #include <signal.h>
@@ -345,31 +346,53 @@ int exec_client_requests(int cli_socket)
         clear_cmd_list(cmd_list);
 
         // build up the cmd_list struct
-        build_cmd_list(cmd_buff, cmd_list);
-
-        // execute the cmd_list as a pipeline
-        cmd_rc = rsh_execute_pipeline(cli_socket, cmd_list);
-
-        // send back appropriate response
-        rc = send_message_eof(cli_socket);
-
-        if (rc != OK)
+        rc = build_cmd_list(cmd_buff, cmd_list);
+        if (rc == OK)
         {
-            printf(CMD_ERR_RDSH_COMM);
-            rc = ERR_RDSH_COMMUNICATION;
-            break;
+            // execute the cmd_list as a pipeline
+            cmd_rc = rsh_execute_pipeline(cli_socket, cmd_list);
+
+            // send back appropriate response
+            rc = send_message_eof(cli_socket);
+            if (rc != OK)
+            {
+                printf(CMD_ERR_RDSH_COMM);
+                rc = ERR_RDSH_COMMUNICATION;
+                break;
+            }
+
+            if (cmd_rc == EXIT_SC)
+            {
+                rc = OK;
+                break;
+            }
+
+            if (cmd_rc == STOP_SERVER_SC)
+            {
+                rc = OK_EXIT;
+                break;
+            }
         }
-
-        if (cmd_rc == EXIT_SC)
+        else
         {
-            rc = OK;
-            break;
-        }
-
-        if (cmd_rc == STOP_SERVER_SC)
-        {
-            rc = OK_EXIT;
-            break;
+            switch (rc)
+            {
+            case WARN_NO_CMDS:
+                send_message_string(cli_socket, CMD_WARN_NO_CMD);
+                break;
+            case ERR_CMD_OR_ARGS_TOO_BIG:
+                send_message_string(cli_socket, CMD_ERR_CMD_OR_ARGS_TOO_BIG);
+                break;
+            case ERR_TOO_MANY_COMMANDS:
+                send_message_string(cli_socket, "error: too many commands in pipeline\n");
+                break;
+            case ERR_MEMORY:
+                send_message_string(cli_socket, CMD_ERR_MEMORY);
+                break;
+            default:
+                send_message_string(cli_socket, CMD_ERR_PIPE_FORMAT);
+                break;
+            }
         }
     }
 
@@ -440,6 +463,73 @@ int send_message_string(int cli_socket, char *buff)
     return ret;
 }
 
+// This function sets up redirection for a command in a pipeline or with a socket
+void setup_pipeline_redirections(int i, command_list_t *clist, int cli_sock, int pipes[][2])
+{
+    // if the first command is built in and doesn't have an input file
+    if (i == 0 && !clist->commands[i].input_file)
+    {
+        // link the stdin to the client socket
+        dup2(cli_sock, STDIN_FILENO);
+    }
+    else if (i > 0)
+    {
+        // link the stdin to the previous pipe
+        dup2(pipes[i - 1][0], STDIN_FILENO);
+    }
+
+    // if the last command is built in and doesn't have an ouput file
+    if (i == clist->num - 1 && !clist->commands[i].output_file)
+    {
+        // link the stdout and stderr to the client socket
+        dup2(cli_sock, STDOUT_FILENO);
+        dup2(cli_sock, STDERR_FILENO);
+    }
+    else if (i < clist->num - 1)
+    {
+        // link the stdout to the next pipe
+        dup2(pipes[i][1], STDOUT_FILENO);
+    }
+}
+
+// executes the forked command, handles redirection and error checking
+int rsh_exec_cmd(command_list_t *clist, int pipes[][2], pid_t *pids, int i, int cli_sock)
+{
+    pids[i] = fork();
+    if (pids[i] < 0)
+    {
+        printf(CMD_ERR_FORK);
+        return ERR_MEMORY;
+    }
+
+    // this is a child process
+    if (pids[i] == 0)
+    {
+        handle_redirection(i, clist);
+
+        setup_pipeline_redirections(i, clist, cli_sock, pipes);
+
+        // Close all pipe ends in child
+        for (int j = 0; j < clist->num - 1; j++)
+        {
+            close(pipes[j][0]);
+            close(pipes[j][1]);
+        }
+
+        // execute the command
+        int childRc = execvp(clist->commands[i].argv[0], clist->commands[i].argv);
+        // Check for common file related error codes
+        if (childRc < 0)
+        {
+            int err = errno;
+            output_exec_error(err);
+            exit(err); // exit with the error code
+        }
+    }
+
+    return OK;
+}
+
 /*
  * rsh_execute_pipeline(int cli_sock, command_list_t *clist)
  *      cli_sock:    The server-side socket that is connected to the client
@@ -481,10 +571,10 @@ int send_message_string(int cli_socket, char *buff)
 int rsh_execute_pipeline(int cli_sock, command_list_t *clist)
 {
     int pipes[clist->num - 1][2]; // Array of pipes
-    pid_t pids[clist->num];
-    int pids_st[clist->num]; // Array to store process IDs
-    Built_In_Cmds bi_cmd;
-    int exit_code;
+    pid_t pids[clist->num];       // Array to store process IDs
+    int pids_st[clist->num];      // Array to store process IDs status
+    Built_In_Cmds bi_cmd;         // Built in command holder
+    int exit_code;                // Exit code that will be returned
 
     // Create all necessary pipes
     for (int i = 0; i < clist->num - 1; i++)
@@ -501,29 +591,12 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist)
         bi_cmd = rsh_match_command(clist->commands[i].argv[0]);
         if (bi_cmd != BI_NOT_BI)
         {
-            int saved_stdin = 0;
-            int saved_stdout = 0;
-            int saved_stderr = 0;
-            // if the first or last commands are built in, link them to the client socket
-            if (i == 0 && !clist->commands[i].input_file)
-            {
-                // save the original stdin
-                saved_stdin = dup(STDIN_FILENO);
+            // save the original stdin, stdout, and stderr
+            int saved_stdin = dup(STDIN_FILENO);
+            int saved_stdout = dup(STDOUT_FILENO);
+            int saved_stderr = dup(STDERR_FILENO);
 
-                // link the stdin to the client socket
-                dup2(cli_sock, STDIN_FILENO);
-            }
-
-            if (i == clist->num - 1 && !clist->commands[i].output_file)
-            {
-                // save the original stdout and stderr
-                saved_stdout = dup(STDOUT_FILENO);
-                saved_stderr = dup(STDERR_FILENO);
-
-                // link the stdout and stderr to the client socket
-                dup2(cli_sock, STDOUT_FILENO);
-                dup2(cli_sock, STDERR_FILENO);
-            }
+            setup_pipeline_redirections(i, clist, cli_sock, pipes);
 
             // built in command, doesn't need to be forked, labeled as -1
             pids[i] = -1;
@@ -552,23 +625,21 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist)
             }
 
             // restore the original stdin, stdout, and stderr
-            if (i == 0 && !clist->commands[i].input_file)
-            {
-                dup2(saved_stdin, STDIN_FILENO);
-                close(saved_stdin);
-            }
-
-            if (i == clist->num - 1 && !clist->commands[i].output_file)
-            {
-                dup2(saved_stdout, STDOUT_FILENO);
-                dup2(saved_stderr, STDERR_FILENO);
-                close(saved_stdout);
-                close(saved_stderr);
-            }
+            dup2(saved_stdin, STDIN_FILENO);
+            dup2(saved_stdout, STDOUT_FILENO);
+            dup2(saved_stderr, STDERR_FILENO);
+            close(saved_stdin);
+            close(saved_stdout);
+            close(saved_stderr);
         }
         else
         {
             // not a built in command, perform fork/exec
+            int rc = rsh_exec_cmd(clist, pipes, pids, i, cli_sock);
+            if (rc < 0)
+            {
+                return rc;
+            }
         }
     }
 

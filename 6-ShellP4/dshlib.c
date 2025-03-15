@@ -444,7 +444,7 @@ int build_cmd_list(char *cmd_line, command_list_t *cmd_list)
         if (rc == WARN_NO_CMDS)
         {
             printf(CMD_ERR_PIPE_FORMAT);
-            return rc;
+            return ERR_CMD_ARGS_BAD;
         }
         else if (rc == ERR_CMD_OR_ARGS_TOO_BIG)
         {

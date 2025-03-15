@@ -338,7 +338,7 @@ EOF
     expected_output="local mode
 dsh4> error: piping is improperly formatted
 dsh4> 
-cmd loop returned -1"
+cmd loop returned -4"
 
     echo "Captured stdout: $output"
     echo "Exit Status: $status"
@@ -518,9 +518,6 @@ dsh4> cmd loop returned 0"
 
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]
-
-    # Clean up any temporary file created during the test
-    rm -f out.txt
 }
 
 @test "exiting the client with a unique ip and port" {
@@ -537,9 +534,6 @@ dsh4> cmd loop returned 0"
 
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]
-
-    # Clean up any temporary file created during the test
-    rm -f out.txt
 }
 
 @test "dragon command on client" {
@@ -595,9 +589,171 @@ dsh4> cmd loop returned 0"
 
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]
+}
 
-    # Clean up any temporary file created during the test
-    rm -f out.txt
+@test "cd and other commands work as expected" {
+    run ./dsh -c <<'EOF'
+pwd
+cd ..
+pwd
+EOF
+
+    CWD=$(pwd)
+    parent_dir=$(dirname $CWD)
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> $CWD
+dsh4> dsh4> $parent_dir
+dsh4> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "piping commands from client to server" {
+    run ./dsh -c <<'EOF'
+echo "hello world" | tr '[:lower:]' '[:upper:]'
+EOF
+
+    CWD=$(pwd)
+    parent_dir=$(dirname $CWD)
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> HELLO WORLD
+dsh4> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+
+@test "piping multiple commands from client to server" {
+    run ./dsh -c <<'EOF'
+echo "hello world" | tr '[:lower:]' '[:upper:]' | awk '{print $1}'
+EOF
+
+    CWD=$(pwd)
+    parent_dir=$(dirname $CWD)
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> HELLO
+dsh4> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "piping built-in commands from client to server" {
+    run ./dsh -c <<'EOF'
+dragon | wc -l
+EOF
+
+    CWD=$(pwd)
+    parent_dir=$(dirname $CWD)
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> 38
+dsh4> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "invalid command from client to server" {
+    run ./dsh -c <<'EOF'
+foobar
+EOF
+
+    CWD=$(pwd)
+    parent_dir=$(dirname $CWD)
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> Command not found in PATH
+dsh4> 
+cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+# remember to add exit command at the end of the test to fix bugs
+@test "incorrect piping format from client to server" {
+    run ./dsh -c <<'EOF'
+echo "hello world" | | tr '[:lower:]' '[:upper:]' | cd ..
+exit
+EOF
+
+    CWD=$(pwd)
+    parent_dir=$(dirname $CWD)
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> error: piping is improperly formatted
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "too many pipes from client to server" {
+    run ./dsh -c <<'EOF'
+echo | echo | echo | echo | echo | echo | echo | echo | echo | echo | echo | echo | echo
+exit
+EOF
+
+    CWD=$(pwd)
+    parent_dir=$(dirname $CWD)
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> error: too many commands in pipeline
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
+@test "no commands from client to server" {
+    run ./dsh -c <<'EOF'
+
+exit
+EOF
+
+    CWD=$(pwd)
+    parent_dir=$(dirname $CWD)
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> warning: no commands provided
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout: $output"
+    echo "Exit Status: $status"
+    echo "Expected Output: $expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
 }
 
 # stops the server from, running, must be second to last test
@@ -615,9 +771,6 @@ dsh4> cmd loop returned 0"
 
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]
-
-    # Clean up any temporary file created during the test
-    rm -f out.txt
 }
 
 # This should be the last test in the file
@@ -636,7 +789,4 @@ cmd loop returned -52"
 
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]
-
-    # Clean up any temporary file created during the test
-    rm -f out.txt
 }
