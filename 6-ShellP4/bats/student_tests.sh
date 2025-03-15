@@ -596,6 +596,7 @@ dsh4> cmd loop returned 0"
 pwd
 cd ..
 pwd
+cd 6-ShellP4
 EOF
 
     CWD=$(pwd)
@@ -603,7 +604,7 @@ EOF
     expected_output="socket client mode:  addr:127.0.0.1:7982
 dsh4> $CWD
 dsh4> dsh4> $parent_dir
-dsh4> 
+dsh4> dsh4> 
 cmd loop returned 0"
 
     echo "Captured stdout: $output"
@@ -765,8 +766,8 @@ EOF
 
     expected_output="socket client mode:  addr:127.0.0.1:7982
 dsh4> Command not found in PATH
-dsh4> dsh4> 2
-cmd loop returned 0"
+dsh4> 2
+dsh4> cmd loop returned 0"
 
     echo "Captured stdout:" 
     echo "$output"
@@ -776,6 +777,31 @@ cmd loop returned 0"
 
     [ "$output" = "$expected_output" ]
     [ "$status" -eq 0 ]
+}
+
+@test "redirect input file from client to server" {
+# temp file
+echo "input file content" > in.txt
+    run ./dsh -c <<'EOF'
+cat < in.txt
+exit
+EOF
+
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> input file content
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "Expected Output:"
+    echo "$expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # delete file
+    rm -f in.txt
 }
 
 # stops the server from, running, must be second to last test

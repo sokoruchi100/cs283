@@ -354,38 +354,37 @@ int exec_client_requests(int cli_socket)
             // execute the cmd_list as a pipeline
             cmd_rc = rsh_execute_pipeline(cli_socket, cmd_list);
 
-            // send back appropriate response
-            rc = send_message_eof(cli_socket);
-            if (rc != OK)
-            {
-                printf(CMD_ERR_RDSH_COMM);
-                rc = ERR_RDSH_COMMUNICATION;
-                break;
-            }
-
             if (cmd_rc == EXIT_SC)
             {
                 rc = OK;
                 break;
             }
-
-            if (cmd_rc == STOP_SERVER_SC)
+            else if (cmd_rc == STOP_SERVER_SC)
             {
                 rc = OK_EXIT;
                 break;
             }
-
-            if (cmd_rc == RC_SC)
+            else if (cmd_rc == RC_SC)
             {
-                char last_rc_str[10];
+                char *last_rc_str = calloc(10, 1);
                 sprintf(last_rc_str, "%d\n", last_rc);
                 send_message_string(cli_socket, last_rc_str);
+                free(last_rc_str);
             }
             else
             {
-                // save the last rc
-                last_rc = cmd_rc;
+                // send back appropriate response
+                rc = send_message_eof(cli_socket);
+                if (rc != OK)
+                {
+                    printf(CMD_ERR_RDSH_COMM);
+                    rc = ERR_RDSH_COMMUNICATION;
+                    break;
+                }
             }
+
+            // save the last command's rc code
+            last_rc = cmd_rc;
         }
         else
         {

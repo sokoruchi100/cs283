@@ -553,6 +553,7 @@ int handle_redirection(int i, command_list_t *clist)
         {
             if (strcmp(cmd->argv[j], "<") == 0)
             {
+                clist->commands[i].input_file = cmd->argv[j + 1];
                 return perform_input_redirection(&cmd->argv[j]);
             }
         }
@@ -565,10 +566,12 @@ int handle_redirection(int i, command_list_t *clist)
         {
             if (strcmp(cmd->argv[j], ">") == 0)
             {
+                clist->commands[i].output_file = cmd->argv[j + 1];
                 return perform_output_redirection(&cmd->argv[j], O_WRONLY | O_CREAT | O_TRUNC);
             }
             else if (strcmp(cmd->argv[j], ">>") == 0)
             {
+                clist->commands[i].output_file = cmd->argv[j + 1];
                 return perform_output_redirection(&cmd->argv[j], O_WRONLY | O_CREAT | O_APPEND);
             }
         }
