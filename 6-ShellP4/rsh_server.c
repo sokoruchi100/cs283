@@ -281,7 +281,7 @@ int exec_client_requests(int cli_socket)
     command_list_t *cmd_list;
     int rc;
     int cmd_rc;
-    int last_rc;
+    int last_rc = 0;
     char *io_buff;
     char *cmd_buff;
 
@@ -307,6 +307,8 @@ int exec_client_requests(int cli_socket)
         // clear the buffer beforehand
         memset(io_buff, 0, RDSH_COMM_BUFF_SZ);
         memset(cmd_buff, 0, SH_CMD_MAX);
+        cmd_rc = 0;
+        rc = 0;
 
         // wait for the next data packet
         while ((io_size = recv(cli_socket, io_buff, RDSH_COMM_BUFF_SZ, 0)) > 0)
@@ -371,6 +373,18 @@ int exec_client_requests(int cli_socket)
             {
                 rc = OK_EXIT;
                 break;
+            }
+
+            if (cmd_rc == RC_SC)
+            {
+                char last_rc_str[10];
+                sprintf(last_rc_str, "%d\n", last_rc);
+                send_message_string(cli_socket, last_rc_str);
+            }
+            else
+            {
+                // save the last rc
+                last_rc = cmd_rc;
             }
         }
         else
@@ -662,8 +676,14 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist)
 
     // by default get exit code of last process
     // use this as the return value
-    exit_code = WEXITSTATUS(pids_st[clist->num - 1]);
-
+    if (pids[clist->num - 1] != -1)
+    {
+        exit_code = WEXITSTATUS(pids_st[clist->num - 1]);
+    }
+    else
+    {
+        exit_code = pids_st[clist->num - 1];
+    }
     // check if any of the commands in the pipeline are EXIT_SC or STOP_SERVER_SC
     for (int i = 0; i < clist->num; i++)
     {

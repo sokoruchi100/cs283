@@ -756,6 +756,28 @@ dsh4> cmd loop returned 0"
     [ "$status" -eq 0 ]
 }
 
+@test "check rc command works on error from client to server" {
+    run ./dsh -c <<'EOF'
+not_exists
+rc
+exit
+EOF
+
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> Command not found in PATH
+dsh4> dsh4> 2
+cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "Expected Output:"
+    echo "$expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+}
+
 # stops the server from, running, must be second to last test
 @test "stop-server command on client, immediate exit" {
     run ./dsh -c <<'EOF'
