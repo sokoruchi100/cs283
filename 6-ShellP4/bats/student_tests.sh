@@ -804,6 +804,82 @@ dsh4> cmd loop returned 0"
     rm -f in.txt
 }
 
+@test "redirect output file from client to server" {
+    run ./dsh -c <<'EOF'
+echo "testing output file" > out.txt
+cat out.txt
+exit
+EOF
+
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> dsh4> testing output file
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "Expected Output:"
+    echo "$expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # delete file
+    rm -f out.txt
+}
+
+@test "redirect append from client to server" {
+    run ./dsh -c <<'EOF'
+echo "1 2 buckle my shoe" >> out.txt
+echo "3 4 open the door" >> out.txt
+cat out.txt
+exit
+EOF
+
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> dsh4> dsh4> 1 2 buckle my shoe
+3 4 open the door
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "Expected Output:"
+    echo "$expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # delete file
+    rm -f out.txt
+}
+
+@test "pipes and redirects from client to server" {
+echo "1 2 3 4 5" > in.txt
+    run ./dsh -c <<'EOF'
+cat < in.txt | wc > out.txt
+cat out.txt
+exit
+EOF
+
+    expected_output="socket client mode:  addr:127.0.0.1:7982
+dsh4> dsh4>       1       5      10
+dsh4> cmd loop returned 0"
+
+    echo "Captured stdout:" 
+    echo "$output"
+    echo "Exit Status: $status"
+    echo "Expected Output:"
+    echo "$expected_output"
+
+    [ "$output" = "$expected_output" ]
+    [ "$status" -eq 0 ]
+
+    # delete file
+    rm -f in.txt
+    rm -f out.txt
+}
+
 # stops the server from, running, must be second to last test
 @test "stop-server command on client, immediate exit" {
     run ./dsh -c <<'EOF'
