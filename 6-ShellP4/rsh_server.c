@@ -9,6 +9,7 @@
 #include <sys/un.h>
 #include <fcntl.h>
 #include <errno.h>
+#include <pthread.h>
 
 // INCLUDES for extra credit
 // #include <signal.h>
@@ -17,6 +18,13 @@
 
 #include "dshlib.h"
 #include "rshlib.h"
+
+// data to pass to threads
+typedef struct
+{
+    int cli_socket;
+    int svr_socket;
+} thread_data_t;
 
 /*
  * start_server(ifaces, port, is_threaded)
@@ -51,11 +59,6 @@ int start_server(char *ifaces, int port, int is_threaded)
     int svr_socket;
     int rc;
 
-    //
-    // TODO:  If you are implementing the extra credit, please add logic
-    //       to keep track of is_threaded to handle this feature
-    //
-
     svr_socket = boot_server(ifaces, port);
     if (svr_socket < 0)
     {
@@ -63,7 +66,7 @@ int start_server(char *ifaces, int port, int is_threaded)
         return err_code;
     }
 
-    rc = process_cli_requests(svr_socket);
+    rc = process_cli_requests(svr_socket, is_threaded);
 
     stop_server(svr_socket);
 
@@ -203,7 +206,7 @@ int boot_server(char *ifaces, int port)
  *                connections, and negative values terminate the server.
  *
  */
-int process_cli_requests(int svr_socket)
+int process_cli_requests(int svr_socket, int is_threaded)
 {
     int cli_socket;
     int rc = OK;
@@ -218,20 +221,65 @@ int process_cli_requests(int svr_socket)
             return ERR_RDSH_COMMUNICATION;
         }
 
-        // and then execute the client requests
-        rc = exec_client_requests(cli_socket);
-        if (rc == OK_EXIT)
+        // if multithreading is enabled, create a new thread
+        if (is_threaded)
         {
-            printf(RCMD_SERVER_EXITED);
-            break;
+            // allocate thread data for this connection
+            thread_data_t *thread_data = malloc(sizeof(thread_data_t));
+            if (!thread_data)
+            {
+                perror("malloc");
+                close(cli_socket);
+                continue;
+            }
+            thread_data->cli_socket = cli_socket;
+            thread_data->svr_socket = svr_socket;
+
+            pthread_t thread;
+            rc = pthread_create(&thread, NULL, exec_client_requests_threaded, thread_data);
+            if (rc != 0)
+            {
+                printf("Error creating thread %d\n", rc);
+                free(thread_data);
+                close(cli_socket);
+                continue;
+            }
+
+            // detach the thread so that its resources are reclaimed upon termination
+            pthread_detach(thread);
         }
-        else if (rc < 0)
+        else
         {
-            break;
+            // and then execute the client requests
+            rc = exec_client_requests(cli_socket);
+            if (rc == OK_EXIT)
+            {
+                printf(RCMD_SERVER_EXITED);
+                break;
+            }
+            else if (rc < 0)
+            {
+                break;
+            }
         }
     }
 
     return rc;
+}
+
+void *exec_client_requests_threaded(void *arg)
+{
+    thread_data_t *data = (thread_data_t *)arg;
+    int rc = exec_client_requests(data->cli_socket);
+    if (rc == OK_EXIT)
+    {
+        // tell it to stop the server
+        printf(RCMD_SERVER_EXITED);
+        stop_server(data->svr_socket);
+    }
+
+    free(data);
+    return NULL;
 }
 
 /*
@@ -608,6 +656,8 @@ int rsh_execute_pipeline(int cli_sock, command_list_t *clist)
             int saved_stdin = dup(STDIN_FILENO);
             int saved_stdout = dup(STDOUT_FILENO);
             int saved_stderr = dup(STDERR_FILENO);
+
+            handle_redirection(i, clist);
 
             setup_pipeline_redirections(i, clist, cli_sock, pipes);
 

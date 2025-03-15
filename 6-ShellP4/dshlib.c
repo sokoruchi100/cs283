@@ -107,6 +107,9 @@ int free_cmd_buff(cmd_buff_t *cmd_buff)
 int clear_cmd_buff(cmd_buff_t *cmd_buff)
 {
     cmd_buff->argc = 0;
+    cmd_buff->append_mode = 0;
+    cmd_buff->input_file = NULL;
+    cmd_buff->output_file = NULL;
 
     // clears argv by freeing char pointers and setting them to null
     for (int i = 0; i < CMD_ARGV_MAX; i++)
