@@ -10,6 +10,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <pthread.h>
+#include <stdatomic.h>
 
 // INCLUDES for extra credit
 // #include <signal.h>
@@ -25,6 +26,8 @@ typedef struct
     int cli_socket;
     int svr_socket;
 } thread_data_t;
+
+atomic_int stop_server_flag = 0; // allows thread to stop the server
 
 /*
  * start_server(ifaces, port, is_threaded)
@@ -213,6 +216,13 @@ int process_cli_requests(int svr_socket, int is_threaded)
 
     while (1)
     {
+        // stops the server
+        if (atomic_load(&stop_server_flag))
+        {
+            rc = OK_EXIT;
+            break;
+        }
+
         // uses the accept syscall to create cli_socket
         cli_socket = accept(svr_socket, NULL, NULL);
         if (cli_socket == -1)
@@ -273,9 +283,10 @@ void *exec_client_requests_threaded(void *arg)
     int rc = exec_client_requests(data->cli_socket);
     if (rc == OK_EXIT)
     {
-        // tell it to stop the server
+        // tell it to stop the server immediately
         printf(RCMD_SERVER_EXITED);
-        stop_server(data->svr_socket);
+        atomic_store(&stop_server_flag, 1);
+        shutdown(data->svr_socket, SHUT_RDWR);
     }
 
     free(data);
